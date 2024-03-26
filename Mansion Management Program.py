@@ -3,7 +3,6 @@ import math, datetime, calendar
 import os, sys
 from PIL import Image, ImageDraw, ImageFont
 
-# Testing  .................................................
 # UPDATE
 def Update_TenantName_Field(TableName):
     if TableName == SUB_MENU_UPDATE_TenantName[1]:
