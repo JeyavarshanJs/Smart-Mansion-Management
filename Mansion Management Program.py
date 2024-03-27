@@ -3,7 +3,6 @@ import math, datetime, calendar
 import os, sys
 from PIL import Image, ImageDraw, ImageFont
 
-# Testing  .......................................................
 # UPDATE
 def Update_TenantName_Field(TableName):
     if TableName == SUB_MENU_UPDATE_TenantName[1]:
@@ -143,7 +142,7 @@ def GenerateRoomRentReceipt_ALL():
     while True:
         Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
         if DatePreference == '':
-            DatePreference = 'With Month' if Month.upper() == 'WITH MONTH' else ''
+            DatePreference = 'Without Month' if Month.upper() == 'WITHOUT MONTH' else ''
         Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
@@ -163,14 +162,17 @@ def GenerateRoomRentReceipt_ALL():
         TenantID = record[0]
         FinalAmount= int(record[1])
         Year = record[2]
-        ReceiptNumber = record[3]
+        if record[3] == None:
+            continue
+        else:
+            ReceiptNumber = record[3]
         TenantName = record[4]
         ID = record[5]
 
         if ID not in Room_IDs:
-            print('\n', '-' * 50)
+            print('\n', '-' * 50, sep='')
             print(f"'{ID}' Is not a ROOM, So Receipt Generation SKIPPED...")
-            print('-' * 50, '\n')
+            print('-' * 50, '\n', sep='')
             continue
 
         cursor.execute(f"SELECT [Tenant Count], [Rent-1], [Rent-2], [Rent-3] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}'")
@@ -225,7 +227,7 @@ def GenerateRoomRentReceipt_ALL():
         Date_Width = Draw.textlength(Date, Data_Font)
 
         FinalAmount_Position1 = (459 + (126 - FinalAmountText_Width), 554)
-        RoomID_Position = (925 + (73 - RoomIDText_Width), 554)
+        RoomID_Position = (925, 554) # + (73 - RoomIDText_Width)
         MonthAndTenantName_Position = (291, 620)
         ClosingReading_Position = (675, 729)
         OpeningReading_Position = (675, 793)
@@ -266,7 +268,7 @@ def GenerateRoomRentReceipt_ALL():
         Date_Width = Draw.textlength(Date, Date_Font)
 
         FinalAmount_Position = (396 + (105 - FinalAmountText_Width), 476)
-        RoomID_Position = (786 + (60 - RoomIDText_Width), 476)
+        RoomID_Position = (786, 476) # + (60 - RoomIDText_Width)
         MonthAndTenantName_Position = (89, 530)
         ReceiptNumber_Position = (292, 299)
         Date_Position = (953 + (199 - Date_Width), 299)
@@ -344,9 +346,9 @@ def GenerateRoomRentReceipt_SPECIFIC():
         ID = record[4]
 
         if ID not in Room_IDs:
-            print('\n', '-' * 50)
+            print('\n', '-' * 50, sep='')
             print(f"'{ID}' Is not a ROOM, So Receipt Generation SKIPPED...")
-            print('-' * 50, '\n')
+            print('-' * 50, '\n', sep='')
             continue
 
         cursor.execute(f"SELECT [Tenant Count], [Rent-1], [Rent-2], [Rent-3] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}'")
@@ -401,7 +403,7 @@ def GenerateRoomRentReceipt_SPECIFIC():
         Date_Width = Draw.textlength(Date, Data_Font)
 
         FinalAmount_Position1 = (459 + (126 - FinalAmountText_Width), 554)
-        RoomID_Position = (925 + (73 - RoomIDText_Width), 554)
+        RoomID_Position = (925, 554) # + (73 - RoomIDText_Width)
         MonthAndTenantName_Position = (291, 620)
         ClosingReading_Position = (675, 729)
         OpeningReading_Position = (675, 793)
@@ -442,7 +444,7 @@ def GenerateRoomRentReceipt_SPECIFIC():
         Date_Width = Draw.textlength(Date, Date_Font)
 
         FinalAmount_Position = (396 + (105 - FinalAmountText_Width), 476)
-        RoomID_Position = (786 + (60 - RoomIDText_Width), 476)
+        RoomID_Position = (786, 476) # + (60 - RoomIDText_Width)
         MonthAndTenantName_Position = (89, 530)
         ReceiptNumber_Position = (292, 299)
         Date_Position = (953 + (199 - Date_Width), 299)
@@ -462,7 +464,152 @@ def GenerateShopRentReceipt_ALL():
     while True:
         Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
         if DatePreference == '':
-            DatePreference = 'With Month' if Month.upper() == 'WITH MONTH' else ''
+            DatePreference = 'Without Month' if Month.upper() == 'WITHOUT MONTH' else ''
+        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
+        if Month in MonthNames.keys():
+            Month = MonthNames[Month]
+            break
+        elif Month in MonthNames.values():
+            break
+        elif DatePreference != '':
+            print('Preference ACCEPTED...')
+        else:            
+            print('INVALID Month Name, TRY AGAIN...')
+    PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
+
+    Date = Today.strftime(r'%d/%m/%Y')
+    cursor.execute(f"SELECT [Tenant ID], [Individual Rent], [Year (YYYY)], [Receipt Number], [Tenant Name], [Room/Shop ID] \
+                   FROM [Payment Details] WHERE [Status] = 'UNPAID' AND [For The Month Of] = '{Month}';")
+    records = cursor.fetchall()
+    for record in records:
+        TenantID = record[0]
+        FinalAmount= int(record[1])
+        Year = record[2]
+        if record[3] == None:
+            continue
+        else:
+            ReceiptNumber = record[3]
+        TenantName = record[4]
+        ID = record[5]
+
+        cursor.execute(f"SELECT [Shop Name (Optional)] FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}' AND [Tenant ID] = '{TenantID}'")
+        ShopName = cursor.fetchone()[0]
+
+        if ID not in Shop_IDs:
+            print('\n', '-' * 50, sep='')
+            print(f"'{ID}' Is not a Shop, So Receipt Generation SKIPPED...")
+            print('-' * 50, '\n', sep='')
+            continue
+
+        cursor.execute(f"SELECT [Rent-1] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}'")
+        Shop_Rent = cursor.fetchone()[0]
+
+        cursor.execute(f"SELECT [DUE Amount] FROM [DUE Details] WHERE [Tenant ID] = '{TenantID}' AND [Room/Shop ID] = '{ID}' \
+                       AND [For The Month Of] = '{Month}';")
+        BalanceDue = cursor.fetchone()[0]
+
+        cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading], [Closing Date] \
+                       FROM [Monthly report Data] WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
+        Datas = cursor.fetchone()
+        Days_Occupied = Datas[0]
+        Shop_Rent = math.ceil((Shop_Rent * Days_Occupied)/30)
+        UtilityCharges = FinalAmount - Shop_Rent - int(BalanceDue)
+        ClosingReading = Datas[1]
+        OpeningReading = Datas[2]
+        RawClosingDate = Datas[3]
+        ClosingDate = datetime.date.strftime(RawClosingDate, r'%d/%m/%Y')
+        UnitsConsumed = ClosingReading - OpeningReading
+        
+        OpeningDate = '01/02/2024'
+
+        if DatePreference == 'Without Month':
+            Date = Date[-5:]
+        else:
+            Date = Date[-8:]
+    
+        # Generating Rent Receipt-1
+        Template = Image.open('Shop Rent Receipt-1.jpg', mode='r')
+
+        Description_Size, Description_Colour = 55, (0, 0, 0)
+        Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
+        Data_Size, Data_Colour = 50, (0, 0, 0)
+        Data_Font = ImageFont.truetype('CalibriFont Regular.ttf', Data_Size)
+        FinalAmount_Size, FinalAmount_Colour = 50, (0, 0, 0)
+        FinalAmount_Font = ImageFont.truetype('CalibriFont Bold.ttf', FinalAmount_Size)
+        ReceiptNumber_Size, ReceiptNumber_Colour = 50, (0, 0, 0)
+        ReceiptNumber_Font = ImageFont.truetype('CalibriFont Bold.ttf', ReceiptNumber_Size)
+
+        Draw = ImageDraw.Draw(Template)
+        FinalAmountText_Width = Draw.textlength(str(FinalAmount), font=Description_Font)
+        ShopIDText_Width = Draw.textlength(ID, font=Description_Font)
+        Date_Width = Draw.textlength(Date, Data_Font)
+
+        FinalAmount_Position1 = (380 + (135 - FinalAmountText_Width), 587)
+        ShopID_Position = (837, 587) # + (104 - ShopIDText_Width)
+        MonthAndTenantName_Position = (145, 658)
+        ClosingReading_Position = (1482, 788)
+        OpeningReading_Position = (1482, 861)
+        UnitsConsumed_Position = (1482, 935)
+        ShopRent_Position = (577, 788)
+        UtilityCharges_Position = (577, 861)        
+        FinalAmount_Position2 = (577, 935)
+        ReceiptNumber_Position = (358, 349)
+        Date_Position = (1909 + (239 - Date_Width), 349)
+
+        Draw.text(FinalAmount_Position1, str(FinalAmount), Description_Colour, Description_Font)
+        Draw.text(ShopID_Position, ID, Description_Colour, Description_Font)
+        if ShopName != None:
+            Draw.text(MonthAndTenantName_Position, f"{Month.capitalize()}, {Year} From Mr./Mrs. {TenantName} ({ShopName}).", Description_Colour, Description_Font)
+        else:
+            Draw.text(MonthAndTenantName_Position, f"{Month.capitalize()}, {Year} From Mr./Mrs. {TenantName}.", Description_Colour, Description_Font)
+        Draw.text(ClosingReading_Position, f"{str(ClosingReading)}    ({ClosingDate})", Data_Colour, Data_Font)
+        Draw.text(OpeningReading_Position, f"{str(OpeningReading)}    ({OpeningDate})", Data_Colour, Data_Font)
+        Draw.text(UnitsConsumed_Position, str(UnitsConsumed), Data_Colour, Data_Font)
+        Draw.text(ShopRent_Position, str(Shop_Rent), Data_Colour, Data_Font)
+        Draw.text(UtilityCharges_Position, str(UtilityCharges), Data_Colour, Data_Font)
+        Draw.text(FinalAmount_Position2, str(FinalAmount), FinalAmount_Colour, FinalAmount_Font)
+        Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
+        Draw.text(Date_Position, Date, Data_Colour, Data_Font)
+
+        Template.save(rf'Rent Receipts\Shop Rent Receipt No-{ReceiptNumber}_1.jpg', dpi = (300, 300))
+
+        # Generating Rent Receipt-2
+        Template = Image.open('Shop Rent Receipt-2.jpg', mode='r')
+
+        Description_Size, Description_Colour = 38, (0, 0, 0)
+        Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
+        ReceiptNumber_Size, ReceiptNumber_Colour = 38, (0, 0, 0)
+        ReceiptNumber_Font = ImageFont.truetype('CalibriFont Bold.ttf', ReceiptNumber_Size)
+
+        Draw = ImageDraw.Draw(Template)
+        FinalAmountText_Width = Draw.textlength(str(FinalAmount), font=Description_Font)
+        ShopIDText_Width = Draw.textlength(ID, font=Description_Font)
+        Date_Width = Draw.textlength(Date, Description_Font)
+
+        FinalAmount_Position = (333 + (95 - FinalAmountText_Width), 498)
+        ShopID_Position = (654, 498) # + (72 - ShopIDText_Width)
+        MonthAndTenantName_Position = (90, 548)
+        ReceiptNumber_Position = (284, 306)
+        Date_Position = (863 + (180 - Date_Width), 306)
+
+        Draw.text(FinalAmount_Position, str(FinalAmount), Description_Colour, Description_Font)
+        Draw.text(ShopID_Position, ID, Description_Colour, Description_Font)
+        Draw.text(MonthAndTenantName_Position, f"{Month.capitalize()}-{Year[-2:]} From {TenantName} ({ShopName}).", Description_Colour, Description_Font)
+        Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
+        Draw.text(Date_Position, Date, Description_Colour, Description_Font)
+
+        Template.save(rf'Rent Receipts\Shop Rent Receipt No-{ReceiptNumber}_2.jpg', dpi = (300, 300))
+
+        print(f"Rent Receipts generated for '{TenantName}'.") 
+
+def GenerateShopRentReceipt_SPECIFIC():
+    Today = datetime.date.today() 
+    DatePreference = ''    
+    while True:
+        Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
+        if DatePreference == '':
+            DatePreference = 'Without Date' if Month.upper() == 'WITHOUT DATE' else 'Without Month' \
+                                            if Month.upper() == 'WITHOUT MONTH' else ''
         Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
@@ -474,133 +621,160 @@ def GenerateShopRentReceipt_ALL():
         else:            
             print('INVALID Month Name, TRY AGAIN...')
 
-    Date = Today.strftime(r'%d/%m/%Y')
-    cursor.execute(f"SELECT [Tenant ID], [Individual Rent], [Year (YYYY)], [Receipt Number], [Tenant Name], [Room/Shop ID] \
-                   FROM [Payment Details] WHERE [Status] = 'UNPAID' AND [For The Month Of] = '{Month}';")
-    records = cursor.fetchall()
-    for record in records:
-        TenantID = record[0]
-        FinalAmount= int(record[1])
-        Year = record[2]
-        ReceiptNumber = record[3]
-        TenantName = record[4]
-        ID = record[5]
+    while True:
+        ReceiptNOs = input('\nEnter The Receipt NOs (eg. 11-22, 33): ')
+        a = ReceiptNOs.split(',')
+        for i in range(len(a)):
+            a[i] = a[i].strip()
 
-        if ID not in Room_IDs:
-            print('\n', '-' * 50)
-            print(f"'{ID}' Is not a ROOM, So Receipt Generation SKIPPED...")
-            print('-' * 50, '\n')
+        ReceiptNumber_List = []
+        for i in a:
+            if '-' in i:
+                StartID, EndID = i.split('-')
+                if StartID.strip().isdigit() and EndID.strip().isdigit():
+                    StartID, EndID = int(StartID.strip()), int(EndID.strip())
+                else:
+                    print('INVALID Receipt Numbers, TRY AGAING...')
+                    continue
+                ReceiptNumber_List.extend([_ for _ in range(StartID, EndID+1)])
+            else:
+                if i.isdigit():
+                    ReceiptNumber_List.append(int(i))
+                else:
+                    print('INVALID Receipt Numbers, TRY AGAING...')
+                    continue
+        x = 0
+        for i in ReceiptNumber_List:
+            cursor.execute(f"SELECT [Tenant Name], [Room/Shop ID] FROM [Payment Details] \
+                           WHERE [Receipt Number] = {i} AND [Status] = 'UNPAID' AND [For The Month OF] = '{Month}';")
+            x += 1 if cursor.fetchone() != None else 0
+
+        if len(ReceiptNumber_List) != x:
+            print('Some Tenant ID Are NOT VALID, Try Again...')            
+        else:
+            break
+    PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
+
+    Date = Today.strftime(r'%d/%m/%Y')
+    for ReceiptNumber in ReceiptNumber_List:
+        cursor.execute(f"SELECT [Individual Rent], [Year (YYYY)], [Tenant ID], [Tenant Name], [Room/Shop ID] FROM [Payment Details] \
+                       WHERE [Receipt Number] = {ReceiptNumber};")
+        record = cursor.fetchone()
+        FinalAmount= int(record[0])
+        Year = record[1]
+        TenantID = record[2]
+        TenantName = record[3]
+        ID = record[4]
+
+        cursor.execute(f"SELECT [Shop Name (Optional)] FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}' AND [Tenant ID] = '{TenantID}'")
+        ShopName = cursor.fetchone()[0]
+
+        if ID not in Shop_IDs:
+            print('\n', '-' * 50, sep='')
+            print(f"'{ID}' Is not a SHOP, So Receipt Generation SKIPPED...")
+            print('-' * 50, '\n', sep='')
             continue
 
-        cursor.execute(f"SELECT [Tenant Count], [Rent-1], [Rent-2], [Rent-3] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}'")
-        Datas = cursor.fetchone()
-        # Tenant Count
-        if Month == calendar.month_name[Today.month-1].upper():
-            TenantCount = Datas[0]
-        else:
-            while True:
-                TenantCount = input(f'\nEnter Tenant Count For The Room/Shop (ID: {ID}): ')
-                if TenantCount.isdigit() and int(TenantCount) in [1, 2, 3]:
-                    TenantCount = int(TenantCount)
-                    break
-                else:
-                    print('INVALID Tenant Count, TRY AGAIN...')
-        Room_Rent = math.ceil((Datas[TenantCount])/TenantCount) if TenantCount != 0 else 0
+        cursor.execute(f"SELECT [Rent-1] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}'")
+        Shop_Rent = cursor.fetchone()[0]
 
         cursor.execute(f"SELECT [DUE Amount] FROM [DUE Details] WHERE [Tenant ID] = '{TenantID}' AND [Room/Shop ID] = '{ID}' \
                        AND [For The Month Of] = '{Month}';")
         BalanceDue = cursor.fetchone()[0]
 
-        cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading] \
+        cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading], [Closing Date] \
                        FROM [Monthly report Data] WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
         Datas = cursor.fetchone()
         Days_Occupied = Datas[0]
-        Room_Rent = math.ceil((Room_Rent * Days_Occupied)/30)
-        UtilityCharges = FinalAmount - Room_Rent - int(BalanceDue)
+        Shop_Rent = math.ceil((Shop_Rent * Days_Occupied)/30)
+        UtilityCharges = FinalAmount - Shop_Rent - int(BalanceDue)
         ClosingReading = Datas[1]
         OpeningReading = Datas[2]
-        UnitsConsumed = ClosingReading - OpeningReading
-        
-        if DatePreference == 'Without Month':
-            Date = Date[-5:]
-        else:
-            Date = Date[-8:]
-    
-        # Generating Rent Receipt-1
-        Template = Image.open('Room Rent Receipt-1.jpg', mode='r')
+        RawClosingDate = Datas[3]
+        ClosingDate = datetime.date.strftime(RawClosingDate, r'%d/%m/%Y')
+        UnitsConsumed = ClosingReading - OpeningReading        
 
-        Description_Size, Description_Colour = 50, (0, 0, 0)
+        OpeningDate = '01/02/2024'
+
+        if DatePreference == 'Without Date':
+            Date = Date[-8:]
+        elif DatePreference == 'Without Month':
+            Date = Date[-5:]
+
+        # Generating Rent Receipt-1
+        Template = Image.open('Shop Rent Receipt-1.jpg', mode='r')
+
+        Description_Size, Description_Colour = 55, (0, 0, 0)
         Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
-        Data_Size, Data_Colour = 45, (0, 0, 0)
+        Data_Size, Data_Colour = 50, (0, 0, 0)
         Data_Font = ImageFont.truetype('CalibriFont Regular.ttf', Data_Size)
         FinalAmount_Size, FinalAmount_Colour = 50, (0, 0, 0)
         FinalAmount_Font = ImageFont.truetype('CalibriFont Bold.ttf', FinalAmount_Size)
-        ReceiptNumber_Size, ReceiptNumber_Colour = 45, (0, 0, 0)
+        ReceiptNumber_Size, ReceiptNumber_Colour = 50, (0, 0, 0)
         ReceiptNumber_Font = ImageFont.truetype('CalibriFont Bold.ttf', ReceiptNumber_Size)
 
         Draw = ImageDraw.Draw(Template)
         FinalAmountText_Width = Draw.textlength(str(FinalAmount), font=Description_Font)
-        RoomIDText_Width = Draw.textlength(ID, font=Description_Font)
+        ShopIDText_Width = Draw.textlength(ID, font=Description_Font)
         Date_Width = Draw.textlength(Date, Data_Font)
 
-        FinalAmount_Position1 = (459 + (126 - FinalAmountText_Width), 554)
-        RoomID_Position = (925 + (73 - RoomIDText_Width), 554)
-        MonthAndTenantName_Position = (291, 620)
-        ClosingReading_Position = (675, 729)
-        OpeningReading_Position = (675, 793)
-        UnitsConsumed_Position = (675, 856)
-        RoomRent_Position = (675, 920)
-        UtilityCharges_Position = (675, 981)        
-        FinalAmount_Position2 = (675, 1045)
-        ReceiptNumber_Position = (337, 327)
-        Date_Position = (913 + (217 - Date_Width), 327)
+        FinalAmount_Position1 = (380 + (135 - FinalAmountText_Width), 587)
+        ShopID_Position = (837, 587) # + (104 - ShopIDText_Width)
+        MonthAndTenantName_Position = (145, 658)
+        ClosingReading_Position = (1482, 788)
+        OpeningReading_Position = (1482, 861)
+        UnitsConsumed_Position = (1482, 935)
+        RoomRent_Position = (577, 788)
+        UtilityCharges_Position = (577, 861)        
+        FinalAmount_Position2 = (577, 935)
+        ReceiptNumber_Position = (358, 349)
+        Date_Position = (1909 + (239 - Date_Width), 349)
 
         Draw.text(FinalAmount_Position1, str(FinalAmount), Description_Colour, Description_Font)
-        Draw.text(RoomID_Position, ID, Description_Colour, Description_Font)
-        Draw.text(MonthAndTenantName_Position, f"{Month.capitalize()}-{Year[-2:]} From {TenantName}.", Description_Colour, Description_Font)
-        Draw.text(ClosingReading_Position, str(ClosingReading), Data_Colour, Data_Font)
-        Draw.text(OpeningReading_Position, str(OpeningReading), Data_Colour, Data_Font)
+        Draw.text(ShopID_Position, ID, Description_Colour, Description_Font)
+        if ShopName != None:
+            Draw.text(MonthAndTenantName_Position, f"{Month.capitalize()}, {Year} From Mr./Mrs. {TenantName} ({ShopName}).", Description_Colour, Description_Font)
+        else:
+            Draw.text(MonthAndTenantName_Position, f"{Month.capitalize()}, {Year} From Mr./Mrs. {TenantName}.", Description_Colour, Description_Font)
+        Draw.text(ClosingReading_Position, f"{str(ClosingReading)}    ({ClosingDate})", Data_Colour, Data_Font)
+        Draw.text(OpeningReading_Position, f"{str(OpeningReading)}    ({OpeningDate})", Data_Colour, Data_Font)
         Draw.text(UnitsConsumed_Position, str(UnitsConsumed), Data_Colour, Data_Font)
-        Draw.text(RoomRent_Position, str(Room_Rent), Data_Colour, Data_Font)
+        Draw.text(RoomRent_Position, str(Shop_Rent), Data_Colour, Data_Font)
         Draw.text(UtilityCharges_Position, str(UtilityCharges), Data_Colour, Data_Font)
         Draw.text(FinalAmount_Position2, str(FinalAmount), FinalAmount_Colour, FinalAmount_Font)
         Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
         Draw.text(Date_Position, Date, Data_Colour, Data_Font)
 
-        Template.save(rf'Rent Receipts\Room Rent Receipt No-{ReceiptNumber}_1.jpg', dpi = (300, 300))
+        Template.save(rf'Rent Receipts\Shop Rent Receipt No-{ReceiptNumber}_1.jpg', dpi = (300, 300))
 
         # Generating Rent Receipt-2
-        Template = Image.open('Room Rent Receipt-2.jpg', mode='r')
+        Template = Image.open('Shop Rent Receipt-2.jpg', mode='r')
 
-        Description_Size, Description_Colour = 42, (0, 0, 0)
+        Description_Size, Description_Colour = 38, (0, 0, 0)
         Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
         ReceiptNumber_Size, ReceiptNumber_Colour = 38, (0, 0, 0)
         ReceiptNumber_Font = ImageFont.truetype('CalibriFont Bold.ttf', ReceiptNumber_Size)
-        Date_Size, Date_Colour = 38, (0, 0, 0)
-        Date_Font = ImageFont.truetype('CalibriFont Regular.ttf', Date_Size)
 
         Draw = ImageDraw.Draw(Template)
         FinalAmountText_Width = Draw.textlength(str(FinalAmount), font=Description_Font)
-        RoomIDText_Width = Draw.textlength(ID, font=Description_Font)
-        Date_Width = Draw.textlength(Date, Date_Font)
+        ShopIDText_Width = Draw.textlength(ID, font=Description_Font)
+        Date_Width = Draw.textlength(Date, Description_Font)
 
-        FinalAmount_Position = (396 + (105 - FinalAmountText_Width), 476)
-        RoomID_Position = (786 + (60 - RoomIDText_Width), 476)
-        MonthAndTenantName_Position = (89, 530)
-        ReceiptNumber_Position = (292, 299)
-        Date_Position = (953 + (199 - Date_Width), 299)
+        FinalAmount_Position = (333 + (95 - FinalAmountText_Width), 498)
+        ShopID_Position = (654, 498) # + (72 - ShopIDText_Width)
+        MonthAndTenantName_Position = (90, 548)
+        ReceiptNumber_Position = (284, 306)
+        Date_Position = (863 + (180 - Date_Width), 306)
 
         Draw.text(FinalAmount_Position, str(FinalAmount), Description_Colour, Description_Font)
-        Draw.text(RoomID_Position, ID, Description_Colour, Description_Font)
-        Draw.text(MonthAndTenantName_Position, f"{Month.capitalize()}, {Year} From {TenantName}.", Description_Colour, Description_Font)
+        Draw.text(ShopID_Position, ID, Description_Colour, Description_Font)
+        Draw.text(MonthAndTenantName_Position, f"{Month.capitalize()}-{Year[-2:]} From {TenantName} ({ShopName}).", Description_Colour, Description_Font)
         Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
-        Draw.text(Date_Position, Date, Date_Colour, Date_Font)
+        Draw.text(Date_Position, Date, Description_Colour, Description_Font)
 
-        Template.save(rf'Rent Receipts\Room Rent Receipt No-{ReceiptNumber}_2.jpg', dpi = (300, 300))
-        print(f"Rent Receipts generated for '{TenantName}'.")
+        Template.save(rf'Rent Receipts\Shop Rent Receipt No-{ReceiptNumber}_2.jpg', dpi = (300, 300))
 
-def GenerateShopRentReceipt_SPECIFIC():
-    pass
+        print(f"Rent Receipts generated for '{TenantName}'.") 
 
 # CHECK FOR CONSISTENCY
 def CheckConsistency_ReceiptNumber():
@@ -621,6 +795,27 @@ def CheckConsistency_ReceiptNumber():
             print(i)
         else:
             print(i, end=', ')
+
+def CheckConsistency_ID():
+    Today = datetime.date.today()
+    Month = calendar.month_name[Today.month-1].upper()
+
+    cursor.execute(f"SELECT [Tenant ID], [Room/Shop ID] FROM [Payment Details] WHERE [For The Month Of] = '{Month}'")
+    Records = cursor.fetchall()
+    for Record in Records:
+        TenantID = Record[0]
+        ID = Record[1]
+        cursor.execute(f"SELECT * FROM [Occupancy Information] WHERE [Tenant ID] = '{TenantID}' \
+                       AND [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL")
+        a = cursor.fetchall()
+        a = len(a) if a != None else 0
+        cursor.execute(f"SELECT * FROM [DUE Details] WHERE [Tenant ID] = '{TenantID}' AND [Room/Shop ID] = '{ID}' \
+                       AND [For The Month Of] = '{Month}'")
+        b = cursor.fetchall()
+        b = len(b) if b != None else 0
+        if a != 1 or b != 1:
+            print(f"\nRoom/Shop ID: {ID} is INCONSISTANT...")
+
 
 # DUPLICATE RECORDS
 def DuplicateRecords_MonthlyReportData():
@@ -655,7 +850,7 @@ def DuplicateRecords_DUEDetails():
 
 # Establish Connection
 try:
-    con = pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=D:\Python Projects\Smart Mansion Management\Database (MS Access).accdb;')
+    con = pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=E:\GitHub Clones\Smart-Mansion-Management\Database (MS Access).accdb;')
 except:
     print('Database Connection FAILED') 
 
@@ -665,7 +860,7 @@ cursor = con.cursor()
 # Global Variables
 MonthNames = {'JAN': 'JANUARY', 'FEB': 'FEBRUARY', 'MAR': 'MARCH', 'APR': 'APRIL', 'MAY': 'MAY', 'JUN': 'JUNE', 'JUL': 'JULY', 'AUG': 'AUGUST', 'SEP': 'SEPTEMBER', 'OCT': 'OCTOBER', 'NOV': 'NOVEMBER', 'DEC': 'DECEMBER'}
 Room_IDs = ['202', '203', '204', '205', '206', '207', '208', '301', '302', '303', '304', '305', '306', '307', '308', 'S2', 'S3']
-Shop_IDs = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'A1', 'A2', 'A3', '101', '102', '103', '104', '105', '106', '107', '108', 'S1']
+Shop_IDs = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'A1', 'A2', 'A3', '101', '102', '103', '104', '105', '106', '107', '108', 'S1', 'MILL']
 
 # MENU AND SUB_MENU
 MAIN_MENU = ['EXIT', 'UPDATE', 'GENERATE RENT RECEIPT', 'CHECK FOR CONSISTENCY', 'DUPLICATE RECORDS']
@@ -677,7 +872,7 @@ SUB_MENU_GENERATE_RENT_RECEIPT = ['BACK', 'ROOM', 'SHOP']
 SUB_MENU_GENERATE_RENT_RECEIPT_ROOM = ['BACK', 'ALL', 'SPECIFIC']
 SUB_MENU_GENERATE_RENT_RECEIPT_SHOP = ['BACK', 'ALL', 'SPECIFIC']
 
-SUB_MENU_CHECK_FOR_CONSISTENCY = ['BACK', 'Receipt Number']
+SUB_MENU_CHECK_FOR_CONSISTENCY = ['BACK', 'Receipt Number', 'Room_ID AND Shop_ID']
 
 SUB_MENU_DUPLICATE_RECORDS = ['BACK', 'Monthly Report Data', 'DUE Details']
 
@@ -835,6 +1030,9 @@ def MAIN_MENU_FUNCTION():
 
         elif User_Choice == 2:
             CheckConsistency_ReceiptNumber()
+
+        elif User_Choice == 3:
+            CheckConsistency_ID()
 
     elif User_Choice == 5:
         print('\nSUB MENU (DUPLICATE_RECORDS):')
