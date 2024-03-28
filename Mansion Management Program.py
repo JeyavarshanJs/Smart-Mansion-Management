@@ -2,6 +2,20 @@ import pyodbc
 import math, datetime, calendar
 import os, sys
 from PIL import Image, ImageDraw, ImageFont
+from prettytable import PrettyTable
+
+# OTHER FUNCTIONS
+def PrintSetup_ROOM(ReceiptNumber, TenantName):
+    Receipt_1 = Image.open(rf"Rent Receipts\Room {ReceiptNumber}_{TenantName}-1.jpg")
+    Recepit_2 = Image.open(rf"Rent Receipts\Room {ReceiptNumber}_{TenantName}-2.jpg")
+
+    PrintSetup = Image.new('RGB', (1248, 2244), (255, 255, 255))
+
+    PrintSetup.paste(Receipt_1, (0, 0))
+    PrintSetup.paste(Recepit_2, (0, Receipt_1.height))
+
+    PrintSetup.save(rf"Final Print/Room {ReceiptNumber}_{TenantName}.pdf", dpi = (300, 300))
+
 
 # UPDATE
 def Update_TenantName_Field(TableName):
@@ -135,6 +149,7 @@ def Update_CurrentStatus_Field():
         cursor.commit()
     print("'Current Status' UPDATED Successfully...")
 
+
 # GENERATE RENT RECEIPT
 def GenerateRoomRentReceipt_ALL():
     Today = datetime.date.today()
@@ -210,7 +225,7 @@ def GenerateRoomRentReceipt_ALL():
             Date = Date[-8:]
     
         # Generating Rent Receipt-1
-        Template = Image.open('Room Rent Receipt-1.jpg', mode='r')
+        Template = Image.open(r'Static Templates\Room Rent Receipt-1.jpg', mode='r')
 
         Description_Size, Description_Colour = 50, (0, 0, 0)
         Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
@@ -250,10 +265,10 @@ def GenerateRoomRentReceipt_ALL():
         Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
         Draw.text(Date_Position, Date, Data_Colour, Data_Font)
 
-        Template.save(rf'Rent Receipts\Room Rent Receipt No-{ReceiptNumber}_1.jpg', dpi = (300, 300))
+        Template.save(rf'Rent Receipts\Room {ReceiptNumber}_{TenantName}-1.jpg', dpi = (300, 300))
 
         # Generating Rent Receipt-2
-        Template = Image.open('Room Rent Receipt-2.jpg', mode='r')
+        Template = Image.open(r'Static Templates\Room Rent Receipt-2.jpg', mode='r')
 
         Description_Size, Description_Colour = 42, (0, 0, 0)
         Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
@@ -279,7 +294,9 @@ def GenerateRoomRentReceipt_ALL():
         Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
         Draw.text(Date_Position, Date, Date_Colour, Date_Font)
 
-        Template.save(rf'Rent Receipts\Room Rent Receipt No-{ReceiptNumber}_2.jpg', dpi = (300, 300))
+        Template.save(rf'Rent Receipts\Room {ReceiptNumber}_{TenantName}-2.jpg', dpi = (300, 300))
+
+        PrintSetup_ROOM(ReceiptNumber, TenantName)
         print(f"Rent Receipts generated for '{TenantName}'.")
 
 def GenerateRoomRentReceipt_SPECIFIC():
@@ -386,7 +403,7 @@ def GenerateRoomRentReceipt_SPECIFIC():
             Date = Date[-5:]
 
         # Generating Rent Receipt-1
-        Template = Image.open('Room Rent Receipt-1.jpg', mode='r')
+        Template = Image.open(r'Static Templates\Room Rent Receipt-1.jpg', mode='r')
 
         Description_Size, Description_Colour = 50, (0, 0, 0)
         Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
@@ -426,10 +443,10 @@ def GenerateRoomRentReceipt_SPECIFIC():
         Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
         Draw.text(Date_Position, Date, Data_Colour, Data_Font)
 
-        Template.save(rf'Rent Receipts\Room Rent Receipt No-{ReceiptNumber}_1.jpg', dpi = (300, 300))
+        Template.save(rf'Rent Receipts\Room {ReceiptNumber}_{TenantName}-1.jpg', dpi = (300, 300))
 
         # Generating Rent Receipt-2
-        Template = Image.open('Room Rent Receipt-2.jpg', mode='r')
+        Template = Image.open(r'Static Templates\Room Rent Receipt-2.jpg', mode='r')
 
         Description_Size, Description_Colour = 42, (0, 0, 0)
         Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
@@ -455,7 +472,9 @@ def GenerateRoomRentReceipt_SPECIFIC():
         Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
         Draw.text(Date_Position, Date, Date_Colour, Date_Font)
 
-        Template.save(rf'Rent Receipts\Room Rent Receipt No-{ReceiptNumber}_2.jpg', dpi = (300, 300))
+        Template.save(rf'Rent Receipts\Room {ReceiptNumber}_{TenantName}-2.jpg', dpi = (300, 300))
+
+        PrintSetup_ROOM(ReceiptNumber, TenantName)
         print(f"Rent Receipts generated for '{TenantName}'.")
 
 def GenerateShopRentReceipt_ALL():
@@ -475,7 +494,6 @@ def GenerateShopRentReceipt_ALL():
             print('Preference ACCEPTED...')
         else:            
             print('INVALID Month Name, TRY AGAIN...')
-    PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
 
     Date = Today.strftime(r'%d/%m/%Y')
     cursor.execute(f"SELECT [Tenant ID], [Individual Rent], [Year (YYYY)], [Receipt Number], [Tenant Name], [Room/Shop ID] \
@@ -528,7 +546,7 @@ def GenerateShopRentReceipt_ALL():
             Date = Date[-8:]
     
         # Generating Rent Receipt-1
-        Template = Image.open('Shop Rent Receipt-1.jpg', mode='r')
+        Template = Image.open(r'Static Templates\Shop Rent Receipt-1.jpg', mode='r')
 
         Description_Size, Description_Colour = 55, (0, 0, 0)
         Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
@@ -571,10 +589,10 @@ def GenerateShopRentReceipt_ALL():
         Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
         Draw.text(Date_Position, Date, Data_Colour, Data_Font)
 
-        Template.save(rf'Rent Receipts\Shop Rent Receipt No-{ReceiptNumber}_1.jpg', dpi = (300, 300))
+        Template.save(rf'Rent Receipts\Shop {ReceiptNumber}_{TenantName}-1.jpg', dpi = (300, 300))
 
         # Generating Rent Receipt-2
-        Template = Image.open('Shop Rent Receipt-2.jpg', mode='r')
+        Template = Image.open(r'Static Templates\Shop Rent Receipt-2.jpg', mode='r')
 
         Description_Size, Description_Colour = 38, (0, 0, 0)
         Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
@@ -598,7 +616,7 @@ def GenerateShopRentReceipt_ALL():
         Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
         Draw.text(Date_Position, Date, Description_Colour, Description_Font)
 
-        Template.save(rf'Rent Receipts\Shop Rent Receipt No-{ReceiptNumber}_2.jpg', dpi = (300, 300))
+        Template.save(rf'Rent Receipts\Shop {ReceiptNumber}_{TenantName}-2.jpg', dpi = (300, 300))
 
         print(f"Rent Receipts generated for '{TenantName}'.") 
 
@@ -702,7 +720,7 @@ def GenerateShopRentReceipt_SPECIFIC():
             Date = Date[-5:]
 
         # Generating Rent Receipt-1
-        Template = Image.open('Shop Rent Receipt-1.jpg', mode='r')
+        Template = Image.open(r'Static Templates\Shop Rent Receipt-1.jpg', mode='r')
 
         Description_Size, Description_Colour = 55, (0, 0, 0)
         Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
@@ -745,10 +763,10 @@ def GenerateShopRentReceipt_SPECIFIC():
         Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
         Draw.text(Date_Position, Date, Data_Colour, Data_Font)
 
-        Template.save(rf'Rent Receipts\Shop Rent Receipt No-{ReceiptNumber}_1.jpg', dpi = (300, 300))
+        Template.save(rf'Rent Receipts\Shop {ReceiptNumber}_{TenantName}-1.jpg', dpi = (300, 300))
 
         # Generating Rent Receipt-2
-        Template = Image.open('Shop Rent Receipt-2.jpg', mode='r')
+        Template = Image.open(r'Static Templates\Shop Rent Receipt-2.jpg', mode='r')
 
         Description_Size, Description_Colour = 38, (0, 0, 0)
         Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
@@ -772,9 +790,10 @@ def GenerateShopRentReceipt_SPECIFIC():
         Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
         Draw.text(Date_Position, Date, Description_Colour, Description_Font)
 
-        Template.save(rf'Rent Receipts\Shop Rent Receipt No-{ReceiptNumber}_2.jpg', dpi = (300, 300))
+        Template.save(rf'Rent Receipts\Shop {ReceiptNumber}_{TenantName}-2.jpg', dpi = (300, 300))
 
         print(f"Rent Receipts generated for '{TenantName}'.") 
+
 
 # CHECK FOR CONSISTENCY
 def CheckConsistency_ReceiptNumber():
@@ -848,6 +867,97 @@ def DuplicateRecords_DUEDetails():
         cursor.commit()     
 
 
+# FETCH DATA
+def FetchData_TenantName_FROM_TenantID():
+    print("\n\n----ENTER 'STOP' TO QUIT----")
+    while True:
+        TenantID = input('\nEnter The Tenant ID To Fetch Tenant Name: ').strip()
+        if TenantID.upper() == 'STOP':
+            break
+        
+        if TenantID.isdigit():
+            TenantID = "{:04d}".format(int(TenantID))
+        else:
+            print('INVALID Tenant ID, TRY AGAIN...')
+            continue
+            
+        cursor.execute(f"SELECT [ID], [Full Name] FROM [Tenant's Information] WHERE ID = '{TenantID}';")
+        Record = cursor.fetchone()
+
+        if Record != None:
+            print(f"ID: '{Record[0]}'  --->  Name: '{Record[1]}'")
+        else:
+            print('No Records Found, TRY AGAIN...')
+
+def FetchData_TenantID_FROM_TenantName():
+    print("\n\n----ENTER 'STOP' TO QUIT----")
+    while True:
+        TenantName = input('\nEnter The Tenant Name To Fetch ID: ').strip().upper()
+        if TenantName == 'STOP':
+            break
+        cursor.execute(f"SELECT [ID], [Full Name] FROM [Tenant's Information] WHERE [Full Name] LIKE '%{TenantName}%';")
+        Records = cursor.fetchall()
+        if Records != []:
+            for Record in Records:
+                print(f"Name: '{Record[1]}'  --->  ID: '{Record[0]}'")
+        else:
+            print('No Records Found, TRY AGAIN...')
+
+def FetchData_UNPAID_Tenants():
+    cursor.execute("SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Individual Rent], [For The Month OF] \
+                   FROM [Payment Details] WHERE Status = 'UNPAID'")
+    RawRecords = cursor.fetchall()
+    Table = PrettyTable()
+
+    Table.field_names = ['Tenant ID', 'Tenant Name', 'Room/Shop ID', 'Total Amount', 'For The Month Of']
+
+    for Record in RawRecords:
+        Record = list(Record)
+        Record[3] = int(Record[3])
+        Table.add_row(Record)
+
+    print()
+    print(Table)
+
+def FetchData_OccupiedSpaceID_FROM_TenantID():
+    print("\n\n----ENTER 'STOP' TO QUIT----")
+    while True:
+        TenantID = input('\nEnter The Tenant ID To Fetch Room/Shop ID: ').strip()
+        if TenantID.upper() == 'STOP':
+            break
+        
+        if TenantID.isdigit():
+            TenantID = "{:04d}".format(int(TenantID))
+        else:
+            print('INVALID Tenant ID, TRY AGAIN...')
+            continue
+            
+        cursor.execute(f"SELECT [Room/Shop ID] FROM [Occupancy Information] WHERE [Tenant ID] = '{TenantID}' AND [To (Date)] IS NULL;")
+        Records = cursor.fetchall()
+
+        if Records != []:
+            print(f"\nTenant With ID '{TenantID}' Currently Occupying Room/Shop_ID(s): ", end='')
+            for Record in Records:
+                print(f'{Record[0]}', end=', ') if Record != Records[-1] else print(Record[0])
+        else:
+            print('No Records Found, TRY AGAIN...')
+
+def FetchDate_Vacancy():
+    VacancyCount = 0
+    VacantSpace_List = []
+    for ID in list(Room_IDs + Shop_IDs):
+        cursor.execute(f"SELECT * FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL")
+        x = cursor.fetchone()
+        if x == None:
+            VacantSpace_List.append(ID)
+            VacancyCount += 1
+    print('\nNumber Of Room/Shop Vacant:', VacancyCount)
+    print('Vacant Room/Shop(s) is(are): ', end='')
+    for ID in VacantSpace_List:
+        print(ID, end=', ') if ID != VacantSpace_List[-1] else print(ID)
+    
+
+
 # Establish Connection
 try:
     con = pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=E:\GitHub Clones\Smart-Mansion-Management\Database (MS Access).accdb;')
@@ -863,7 +973,7 @@ Room_IDs = ['202', '203', '204', '205', '206', '207', '208', '301', '302', '303'
 Shop_IDs = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'A1', 'A2', 'A3', '101', '102', '103', '104', '105', '106', '107', '108', 'S1', 'MILL']
 
 # MENU AND SUB_MENU
-MAIN_MENU = ['EXIT', 'UPDATE', 'GENERATE RENT RECEIPT', 'CHECK FOR CONSISTENCY', 'DUPLICATE RECORDS']
+MAIN_MENU = ['EXIT', 'UPDATE', 'GENERATE RENT RECEIPT', 'CHECK FOR CONSISTENCY', 'DUPLICATE RECORDS', 'FETCH DATA']
 
 SUB_MENU_UPDATE = ['BACK', 'Tenant Name', 'Total Rent', 'Individual Rent', 'Tenant Count', 'Current Status']
 SUB_MENU_UPDATE_TenantName = ['BACK', 'Occupancy Information', 'Payment Details']
@@ -875,6 +985,8 @@ SUB_MENU_GENERATE_RENT_RECEIPT_SHOP = ['BACK', 'ALL', 'SPECIFIC']
 SUB_MENU_CHECK_FOR_CONSISTENCY = ['BACK', 'Receipt Number', 'Room_ID AND Shop_ID']
 
 SUB_MENU_DUPLICATE_RECORDS = ['BACK', 'Monthly Report Data', 'DUE Details']
+
+SUB_MENU_FETCH_DATA = ['BACK', 'Tenant_ID --> Tenant_Name', 'Tenant_Name --> Tenant_ID', 'UNPAID Tenants', 'Room/Shop_ID FROM TenantID', 'Vacant Room/Shop']
 
 # GETTING USER'S PREFERENCE
 def MAIN_MENU_FUNCTION():
@@ -929,21 +1041,27 @@ def MAIN_MENU_FUNCTION():
 
                 elif User_Choice == 2:
                     Update_TenantName_Field(SUB_MENU_UPDATE_TenantName[User_Choice-1])
+                    MAIN_MENU_FUNCTION()
 
                 elif User_Choice == 3:
                     Update_TenantName_Field(SUB_MENU_UPDATE_TenantName[User_Choice-1])
+                    MAIN_MENU_FUNCTION()
                 
             elif User_Choice == 3:
                 Update_TotalRent_Field()
+                MAIN_MENU_FUNCTION()
             
             elif User_Choice == 4:
                 Update_IndividualRent_Field()
+                MAIN_MENU_FUNCTION()
 
             elif User_Choice == 5:
                 Update_TenantsCount_Field()
+                MAIN_MENU_FUNCTION()
 
             elif User_Choice == 6:
                 Update_CurrentStatus_Field()
+                MAIN_MENU_FUNCTION()
 
         # Calling SUB_MENU_UPDATE
         SUB_MENU_UPDATE_FUNCTION()                
@@ -983,9 +1101,11 @@ def MAIN_MENU_FUNCTION():
 
                 elif User_Choice == 2:
                     GenerateRoomRentReceipt_ALL()
+                    MAIN_MENU_FUNCTION()
 
                 elif User_Choice == 3:
                     GenerateRoomRentReceipt_SPECIFIC()
+                    MAIN_MENU_FUNCTION()
 
             elif User_Choice == 3:
                 print('\nSUB MENU (GENERATE_RENT_RECEIPT_SHOP):')
@@ -1005,9 +1125,11 @@ def MAIN_MENU_FUNCTION():
 
                 elif User_Choice == 2:
                     GenerateShopRentReceipt_ALL()
+                    MAIN_MENU_FUNCTION()
 
                 elif User_Choice == 3:
                     GenerateShopRentReceipt_SPECIFIC()
+                    MAIN_MENU_FUNCTION()
 
         # Calling SUB_MENU_UPDATE
         SUB_MENU_GENERATE_RENT_RECEIPT_FUNCTION()                
@@ -1030,9 +1152,11 @@ def MAIN_MENU_FUNCTION():
 
         elif User_Choice == 2:
             CheckConsistency_ReceiptNumber()
+            MAIN_MENU_FUNCTION()
 
         elif User_Choice == 3:
             CheckConsistency_ID()
+            MAIN_MENU_FUNCTION()
 
     elif User_Choice == 5:
         print('\nSUB MENU (DUPLICATE_RECORDS):')
@@ -1052,12 +1176,49 @@ def MAIN_MENU_FUNCTION():
 
         elif User_Choice == 2:
             DuplicateRecords_MonthlyReportData()
+            MAIN_MENU_FUNCTION()
         
         elif User_Choice == 3:
             DuplicateRecords_DUEDetails()
+            MAIN_MENU_FUNCTION()
         
         print(f"Records Duplicated in the Table ({SUB_MENU_DUPLICATE_RECORDS[User_Choice-1]}) Successfully...")
 
+    elif User_Choice == 6:
+        print('\nSUB MENU (FETCH_DATA):')
+        for i, Choice in enumerate(SUB_MENU_FETCH_DATA):
+            print(f'{i+1})', Choice)    
+
+        while True:
+            User_Choice = input('Enter Your Choice ID: ')
+            if User_Choice in [str(i+1) for i in range(len(SUB_MENU_FETCH_DATA))]:
+                User_Choice = int(User_Choice)
+                break
+            else:
+                print('ID Not Defined, TRY AGAIN...')
+
+        if User_Choice == 1:
+            MAIN_MENU_FUNCTION()
+
+        elif User_Choice == 2:
+            FetchData_TenantName_FROM_TenantID()
+            MAIN_MENU_FUNCTION()
+
+        elif User_Choice == 3:
+            FetchData_TenantID_FROM_TenantName()
+            MAIN_MENU_FUNCTION()
+
+        elif User_Choice == 4:
+            FetchData_UNPAID_Tenants()
+            MAIN_MENU_FUNCTION()
+
+        elif User_Choice == 5:
+            FetchData_OccupiedSpaceID_FROM_TenantID()
+            MAIN_MENU_FUNCTION()
+
+        elif User_Choice == 6:
+            FetchDate_Vacancy()
+            MAIN_MENU_FUNCTION()
 
 # Calling MAIN_MENU
 MAIN_MENU_FUNCTION()
