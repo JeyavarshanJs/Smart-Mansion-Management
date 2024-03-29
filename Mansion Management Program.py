@@ -43,7 +43,7 @@ def Update_TotalRent_Field():
     Today = datetime.date.today()
     while True:
         Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
-        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
+        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
             break
@@ -854,17 +854,38 @@ def DuplicateRecords_MonthlyReportData():
 def DuplicateRecords_DUEDetails():
     Today = datetime.date.today()
     Month = calendar.month_name[Today.month-1].upper()
+    Year = Today.strftime(r'%Y')
     
     cursor.execute(f"SELECT TI.ID, TI.[Full Name], OI.[Room/Shop ID] FROM [Tenant's Information] as TI INNER JOIN [Occupancy Information] as OI \
                    ON TI.ID = OI.[Tenant ID];")
     Records = cursor.fetchall()
-    Year = Today.strftime(r'%Y')
+
     for Record in Records:
         TenantID = Record[0]
         FullName = Record[1]
         ID = Record[2]
         cursor.execute(f"INSERT INTO [DUE Details] VALUES ('{TenantID}', '{FullName}', '{ID}', 0, '{Month}', '{Year}');")
         cursor.commit()     
+
+def DuplicateRecords_PaymentDetails():
+    Today = datetime.date.today()
+    Month = calendar.month_name[Today.month].upper()
+    Year = Today.strftime(r'%Y')
+
+    cursor.execute("SELECT MAX([Receipt Number]) FROM [Payment Details]")
+    ReceiptNumber = int(cursor.fetchone()[0]) + 1
+
+    for ID in list(Room_IDs + Shop_IDs):
+        cursor.execute(f"SELECT [Tenant ID], [Tenant Name] FROM [Occupancy Information] \
+                       WHERE [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL AND [Tenant ID] IS NOT NULL")
+        Records = cursor.fetchall()
+        if Records != []:
+            for Record in Records:
+                cursor.execute(f"INSERT INTO [Payment Details] \
+                               ([Receipt Number], [Tenant ID], [Tenant Name], [Room/Shop ID], [For The Month Of], [Year (YYYY)]) \
+                               VALUES ({ReceiptNumber}, '{Record[0]}', '{Record[1]}', '{ID}', '{Month}', '{Year}');")
+                cursor.commit()     
+                ReceiptNumber += 1
 
 
 # FETCH DATA
@@ -905,14 +926,17 @@ def FetchData_TenantID_FROM_TenantName():
 
 def FetchData_UNPAID_Tenants():
     cursor.execute("SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Individual Rent], [For The Month OF] \
-                   FROM [Payment Details] WHERE Status = 'UNPAID'")
+                   FROM [Payment Details] WHERE Status = 'UNPAID' ORDER BY [Room/Shop ID]")
     RawRecords = cursor.fetchall()
-    Table = PrettyTable()
 
-    Table.field_names = ['Tenant ID', 'Tenant Name', 'Room/Shop ID', 'Total Amount', 'For The Month Of']
+    Table = PrettyTable()
+    Table.field_names = ['Tenant ID', 'Tenant Name', 'Room/Shop ID', 'Total Amount', 'Phone Number', 'For The Month Of']
+    Table.align['Tenant Name'] = 'l'
 
     for Record in RawRecords:
-        Record = list(Record)
+        cursor.execute(f"SELECT [Phone Number] FROM [Tenant's Information] WHERE [ID] = '{Record[0]}'")
+        PhoneNumber = cursor.fetchone()[0]
+        Record = list(Record[:4]) + [PhoneNumber] + list(Record[4:])
         Record[3] = int(Record[3])
         Table.add_row(Record)
 
@@ -956,7 +980,23 @@ def FetchDate_Vacancy():
     for ID in VacantSpace_List:
         print(ID, end=', ') if ID != VacantSpace_List[-1] else print(ID)
     
+def FetchData_TotalCashReceived():
+    Today = datetime.date.today()
+    while True:
+        Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
+        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
+        if Month in MonthNames.keys():
+            Month = MonthNames[Month]
+            break
+        elif Month in MonthNames.values():
+            break
+        else:            
+            print('INVALID Month Name, TRY AGAIN...')
 
+    cursor.execute(f"SELECT SUM([Total Rent]) FROM [Monthly Report Data] WHERE [For The Month Of] = '{Month}'")
+    TotalCashReceived = int(cursor.fetchone()[0])
+    TotalCashReceived = '{:,}'.format(TotalCashReceived)
+    print(f'\nTotal Cash Received For The Month Of {Month}:', TotalCashReceived)
 
 # Establish Connection
 try:
@@ -973,7 +1013,7 @@ Room_IDs = ['202', '203', '204', '205', '206', '207', '208', '301', '302', '303'
 Shop_IDs = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'A1', 'A2', 'A3', '101', '102', '103', '104', '105', '106', '107', '108', 'S1', 'MILL']
 
 # MENU AND SUB_MENU
-MAIN_MENU = ['EXIT', 'UPDATE', 'GENERATE RENT RECEIPT', 'CHECK FOR CONSISTENCY', 'DUPLICATE RECORDS', 'FETCH DATA']
+MAIN_MENU = ['EXIT', 'UPDATE', 'GENERATE RENT RECEIPT', 'CHECK FOR CONSISTENCY', 'DUPLICATE RECORDS', 'FETCH DATA', 'CUSTOM ACTION']
 
 SUB_MENU_UPDATE = ['BACK', 'Tenant Name', 'Total Rent', 'Individual Rent', 'Tenant Count', 'Current Status']
 SUB_MENU_UPDATE_TenantName = ['BACK', 'Occupancy Information', 'Payment Details']
@@ -984,9 +1024,10 @@ SUB_MENU_GENERATE_RENT_RECEIPT_SHOP = ['BACK', 'ALL', 'SPECIFIC']
 
 SUB_MENU_CHECK_FOR_CONSISTENCY = ['BACK', 'Receipt Number', 'Room_ID AND Shop_ID']
 
-SUB_MENU_DUPLICATE_RECORDS = ['BACK', 'Monthly Report Data', 'DUE Details']
+SUB_MENU_DUPLICATE_RECORDS = ['BACK', 'Monthly Report Data', 'DUE Details', 'Payment Details']
 
-SUB_MENU_FETCH_DATA = ['BACK', 'Tenant_ID --> Tenant_Name', 'Tenant_Name --> Tenant_ID', 'UNPAID Tenants', 'Room/Shop_ID FROM TenantID', 'Vacant Room/Shop']
+SUB_MENU_FETCH_DATA = ['BACK', 'Tenant_ID --> Tenant_Name', 'Tenant_Name --> Tenant_ID', 'Room/Shop_ID --> TenantID', \
+                       'UNPAID Tenants', 'Vacant Room/Shop', 'Total Cash Received']
 
 # GETTING USER'S PREFERENCE
 def MAIN_MENU_FUNCTION():
@@ -1041,26 +1082,38 @@ def MAIN_MENU_FUNCTION():
 
                 elif User_Choice == 2:
                     Update_TenantName_Field(SUB_MENU_UPDATE_TenantName[User_Choice-1])
+
+                    input('\nPress ENTER Key To Continue...')
                     MAIN_MENU_FUNCTION()
 
                 elif User_Choice == 3:
                     Update_TenantName_Field(SUB_MENU_UPDATE_TenantName[User_Choice-1])
+
+                    input('\nPress ENTER Key To Continue...')
                     MAIN_MENU_FUNCTION()
                 
             elif User_Choice == 3:
                 Update_TotalRent_Field()
+
+                input('\nPress ENTER Key To Continue...')
                 MAIN_MENU_FUNCTION()
             
             elif User_Choice == 4:
                 Update_IndividualRent_Field()
+
+                input('\nPress ENTER Key To Continue...')
                 MAIN_MENU_FUNCTION()
 
             elif User_Choice == 5:
                 Update_TenantsCount_Field()
+
+                input('\nPress ENTER Key To Continue...')
                 MAIN_MENU_FUNCTION()
 
             elif User_Choice == 6:
                 Update_CurrentStatus_Field()
+
+                input('\nPress ENTER Key To Continue...')
                 MAIN_MENU_FUNCTION()
 
         # Calling SUB_MENU_UPDATE
@@ -1101,10 +1154,14 @@ def MAIN_MENU_FUNCTION():
 
                 elif User_Choice == 2:
                     GenerateRoomRentReceipt_ALL()
+
+                    input('\nPress ENTER Key To Continue...')
                     MAIN_MENU_FUNCTION()
 
                 elif User_Choice == 3:
                     GenerateRoomRentReceipt_SPECIFIC()
+
+                    input('\nPress ENTER Key To Continue...')
                     MAIN_MENU_FUNCTION()
 
             elif User_Choice == 3:
@@ -1125,10 +1182,14 @@ def MAIN_MENU_FUNCTION():
 
                 elif User_Choice == 2:
                     GenerateShopRentReceipt_ALL()
+
+                    input('\nPress ENTER Key To Continue...')
                     MAIN_MENU_FUNCTION()
 
                 elif User_Choice == 3:
                     GenerateShopRentReceipt_SPECIFIC()
+
+                    input('\nPress ENTER Key To Continue...')
                     MAIN_MENU_FUNCTION()
 
         # Calling SUB_MENU_UPDATE
@@ -1152,10 +1213,14 @@ def MAIN_MENU_FUNCTION():
 
         elif User_Choice == 2:
             CheckConsistency_ReceiptNumber()
+
+            input('\nPress ENTER Key To Continue...')
             MAIN_MENU_FUNCTION()
 
         elif User_Choice == 3:
             CheckConsistency_ID()
+
+            input('\nPress ENTER Key To Continue...')
             MAIN_MENU_FUNCTION()
 
     elif User_Choice == 5:
@@ -1176,14 +1241,25 @@ def MAIN_MENU_FUNCTION():
 
         elif User_Choice == 2:
             DuplicateRecords_MonthlyReportData()
+
+            print(f"Records Duplicated in the Table ({SUB_MENU_DUPLICATE_RECORDS[User_Choice-1]}) Successfully...")
+            input('\nPress ENTER Key To Continue...')
             MAIN_MENU_FUNCTION()
         
         elif User_Choice == 3:
             DuplicateRecords_DUEDetails()
+
+            print(f"Records Duplicated in the Table ({SUB_MENU_DUPLICATE_RECORDS[User_Choice-1]}) Successfully...")
+            input('\nPress ENTER Key To Continue...')
+            MAIN_MENU_FUNCTION()
+
+        elif User_Choice == 4:
+            DuplicateRecords_PaymentDetails()
+
+            print(f"Records Duplicated in the Table ({SUB_MENU_DUPLICATE_RECORDS[User_Choice-1]}) Successfully...")
+            input('\nPress ENTER Key To Continue...')
             MAIN_MENU_FUNCTION()
         
-        print(f"Records Duplicated in the Table ({SUB_MENU_DUPLICATE_RECORDS[User_Choice-1]}) Successfully...")
-
     elif User_Choice == 6:
         print('\nSUB MENU (FETCH_DATA):')
         for i, Choice in enumerate(SUB_MENU_FETCH_DATA):
@@ -1202,22 +1278,38 @@ def MAIN_MENU_FUNCTION():
 
         elif User_Choice == 2:
             FetchData_TenantName_FROM_TenantID()
+
+            input('\nPress ENTER Key To Continue...')
             MAIN_MENU_FUNCTION()
 
         elif User_Choice == 3:
             FetchData_TenantID_FROM_TenantName()
+
+            input('\nPress ENTER Key To Continue...')
             MAIN_MENU_FUNCTION()
 
         elif User_Choice == 4:
-            FetchData_UNPAID_Tenants()
+            FetchData_OccupiedSpaceID_FROM_TenantID()
+
+            input('\nPress ENTER Key To Continue...')
             MAIN_MENU_FUNCTION()
 
         elif User_Choice == 5:
-            FetchData_OccupiedSpaceID_FROM_TenantID()
+            FetchData_UNPAID_Tenants()
+
+            input('\nPress ENTER Key To Continue...')
             MAIN_MENU_FUNCTION()
 
         elif User_Choice == 6:
             FetchDate_Vacancy()
+
+            input('\nPress ENTER Key To Continue...')
+            MAIN_MENU_FUNCTION()
+
+        elif User_Choice == 7:
+            FetchData_TotalCashReceived()
+
+            input('\nPress ENTER Key To Continue...')
             MAIN_MENU_FUNCTION()
 
 # Calling MAIN_MENU
