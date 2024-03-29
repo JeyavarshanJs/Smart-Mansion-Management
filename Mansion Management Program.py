@@ -43,7 +43,7 @@ def Update_TotalRent_Field():
     Today = datetime.date.today()
     while True:
         Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
-        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
+        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
             break
@@ -52,11 +52,20 @@ def Update_TotalRent_Field():
         else:
             print('INVALID Month Name, TRY AGAIN...')
 
+    TotalTenantCount = 0
+    cursor.execute(f"SELECT [Room/Shop ID], [Tenant Count] FROM [Room/Shop Data]")
+    Records = cursor.fetchall()
+    for Record in Records:
+        TotalTenantCount += Record[1] if Record[0] in Room_IDs else 0
+        
+    cursor.execute(f"SELECT SUM([Amount]) FROM [Water Purchase Details] WHERE [For The Month Of] = '{Month}'")
+    TotalWaterCharge = math.ceil(cursor.fetchone())
+
     cursor.execute("SELECT * FROM [Room/Shop Data] ORDER BY [Room/Shop ID]")
     records = cursor.fetchall()
     for record in records:
         ID = record[0]
-        if Month == calendar.month_name[Today.month-1].upper():
+        if Month == calendar.month_name[Today.month].upper():
             TenantCount = record[1]
         else:
             while True:
@@ -77,8 +86,13 @@ def Update_TotalRent_Field():
         Days_Occupied = Data[0]
         Closing_Reading = Data[1]
         Opening_Reading = Data[2]
-        Total_Rent = math.ceil((Room_Rent + Other_Charges)/30 * Days_Occupied + (Closing_Reading - Opening_Reading)*Current_Charge) \
-                                if (Room_Rent + Other_Charges) != 0 else 0
+        if ID in Room_IDs:
+            Total_Rent = math.ceil((Room_Rent + Other_Charges)/30 * Days_Occupied + (Closing_Reading - Opening_Reading)*Current_Charge) \
+                + math.ceil(TotalWaterCharge / TotalTenantCount) if (Room_Rent + Other_Charges) != 0 else 0
+        else:
+            Total_Rent = math.ceil((Room_Rent + Other_Charges)/30 * Days_Occupied + (Closing_Reading - Opening_Reading)*Current_Charge) \
+                                    if (Room_Rent + Other_Charges) != 0 else 0
+
         cursor.execute(f"UPDATE [Monthly Report Data] SET [Total Rent] = ? WHERE [Room/Shop ID] = ? AND \
                        [For The Month Of] = '{Month}';", (Total_Rent, ID))
         con.commit()
@@ -88,7 +102,7 @@ def Update_IndividualRent_Field():
     Today = datetime.date.today()
     while True:
         Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
-        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
+        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
             break
@@ -107,7 +121,7 @@ def Update_IndividualRent_Field():
         TotalRent = cursor.fetchone()[0]
 
         # Tenant Count
-        if Month == calendar.month_name[Today.month-1].upper():
+        if Month == calendar.month_name[Today.month].upper():
             cursor.execute(f"SELECT [Tenant Count] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}';")
             TenantCount = cursor.fetchone()[0]
         else:
@@ -142,12 +156,27 @@ def Update_TenantsCount_Field():
     print("'Tenant Count' UPDATED Successfully...")
 
 def Update_CurrentStatus_Field():
-    cursor.execute("SELECT [Tenant ID] FROM [Occupancy Information] WHERE [To (Date)] IS NOT NULL;")
+    cursor.execute("SELECT [ID] FROM [Tenant's Information];")
     TenantIDs = cursor.fetchall()
     for TenantID in TenantIDs:
-        cursor.execute(f"UPDATE [Tenant's Information] SET [Current Status] = 'VACATED' WHERE [ID] = '{TenantID[0]}'")
-        cursor.commit()
+        cursor.execute(f"SELECT [Room/Shop ID] FROM [Occupancy Information] WHERE [Tenant ID] = '{TenantID[0]}' AND [To (Date)] IS NULL")
+        x = cursor.fetchall()
+        if x == []:
+            cursor.execute(f"UPDATE [Tenant's Information] SET [Current Status] = 'VACATED' WHERE [ID] = '{TenantID[0]}'")
+            cursor.commit()
+        else:
+            cursor.execute(f"UPDATE [Tenant's Information] SET [Current Status] = 'OCCUPIED' WHERE [ID] = '{TenantID[0]}'")
+            cursor.commit()
     print("'Current Status' UPDATED Successfully...")
+
+def Update_ForTheMonthOf_Field_WaterPurchaseDetails():
+    cursor.execute("SELECT [Purchase Date] FROM [Water Purchase Details] WHERE [For The Month Of] IS NULL")
+    Records = cursor.fetchall()
+    for Record in Records:
+        Date = datetime.datetime.strptime(str(Record[0])[:10], r'%Y-%m-%d')
+        Month = Date.strftime('%B').upper()
+        cursor.execute(f"UPDATE [Water Purchase Details] SET [For The Month Of] = '{Month}' WHERE [Purchase Date] = ?", (Date,))
+        cursor.commit()    
 
 
 # GENERATE RENT RECEIPT
@@ -158,7 +187,7 @@ def GenerateRoomRentReceipt_ALL():
         Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
         if DatePreference == '':
             DatePreference = 'Without Month' if Month.upper() == 'WITHOUT MONTH' else ''
-        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
+        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
             break
@@ -193,7 +222,7 @@ def GenerateRoomRentReceipt_ALL():
         cursor.execute(f"SELECT [Tenant Count], [Rent-1], [Rent-2], [Rent-3] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}'")
         Datas = cursor.fetchone()
         # Tenant Count
-        if Month == calendar.month_name[Today.month-1].upper():
+        if Month == calendar.month_name[Today.month].upper():
             TenantCount = Datas[0]
         else:
             while True:
@@ -307,7 +336,7 @@ def GenerateRoomRentReceipt_SPECIFIC():
         if DatePreference == '':
             DatePreference = 'Without Date' if Month.upper() == 'WITHOUT DATE' else 'Without Month' \
                                             if Month.upper() == 'WITHOUT MONTH' else ''
-        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
+        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
             break
@@ -371,7 +400,7 @@ def GenerateRoomRentReceipt_SPECIFIC():
         cursor.execute(f"SELECT [Tenant Count], [Rent-1], [Rent-2], [Rent-3] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}'")
         Datas = cursor.fetchone()
         # Tenant Count
-        if Month == calendar.month_name[Today.month-1].upper():
+        if Month == calendar.month_name[Today.month].upper():
             TenantCount = Datas[0]
         else:
             while True:
@@ -484,7 +513,7 @@ def GenerateShopRentReceipt_ALL():
         Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
         if DatePreference == '':
             DatePreference = 'Without Month' if Month.upper() == 'WITHOUT MONTH' else ''
-        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
+        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
             break
@@ -628,7 +657,7 @@ def GenerateShopRentReceipt_SPECIFIC():
         if DatePreference == '':
             DatePreference = 'Without Date' if Month.upper() == 'WITHOUT DATE' else 'Without Month' \
                                             if Month.upper() == 'WITHOUT MONTH' else ''
-        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
+        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
             break
@@ -817,7 +846,7 @@ def CheckConsistency_ReceiptNumber():
 
 def CheckConsistency_ID():
     Today = datetime.date.today()
-    Month = calendar.month_name[Today.month-1].upper()
+    Month = calendar.month_name[Today.month].upper()
 
     cursor.execute(f"SELECT [Tenant ID], [Room/Shop ID] FROM [Payment Details] WHERE [For The Month Of] = '{Month}'")
     Records = cursor.fetchall()
@@ -853,7 +882,7 @@ def DuplicateRecords_MonthlyReportData():
 
 def DuplicateRecords_DUEDetails():
     Today = datetime.date.today()
-    Month = calendar.month_name[Today.month-1].upper()
+    Month = calendar.month_name[Today.month].upper()
     Year = Today.strftime(r'%Y')
     
     cursor.execute(f"SELECT TI.ID, TI.[Full Name], OI.[Room/Shop ID] FROM [Tenant's Information] as TI INNER JOIN [Occupancy Information] as OI \
@@ -984,7 +1013,7 @@ def FetchData_TotalCashReceived():
     Today = datetime.date.today()
     while True:
         Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
-        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
+        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
             break
@@ -1000,7 +1029,7 @@ def FetchData_TotalCashReceived():
 
 # Establish Connection
 try:
-    con = pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=E:\GitHub Clones\Smart-Mansion-Management\Database (MS Access).accdb;')
+    con = pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=D:\Python Projects\Smart Mansion Management\Database (MS Access).accdb;')
 except:
     print('Database Connection FAILED') 
 
@@ -1015,7 +1044,7 @@ Shop_IDs = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'A1', 'A2', 'A3', '101', '102', 
 # MENU AND SUB_MENU
 MAIN_MENU = ['EXIT', 'UPDATE', 'GENERATE RENT RECEIPT', 'CHECK FOR CONSISTENCY', 'DUPLICATE RECORDS', 'FETCH DATA', 'CUSTOM ACTION']
 
-SUB_MENU_UPDATE = ['BACK', 'Tenant Name', 'Total Rent', 'Individual Rent', 'Tenant Count', 'Current Status']
+SUB_MENU_UPDATE = ['BACK', 'Tenant Name', 'Total Rent', 'Individual Rent', 'Tenant Count', 'Current Status', 'For The Month Of']
 SUB_MENU_UPDATE_TenantName = ['BACK', 'Occupancy Information', 'Payment Details']
 
 SUB_MENU_GENERATE_RENT_RECEIPT = ['BACK', 'ROOM', 'SHOP']
@@ -1113,6 +1142,13 @@ def MAIN_MENU_FUNCTION():
             elif User_Choice == 6:
                 Update_CurrentStatus_Field()
 
+                input('\nPress ENTER Key To Continue...')
+                MAIN_MENU_FUNCTION()
+
+            elif User_Choice == 7:
+                Update_ForTheMonthOf_Field_WaterPurchaseDetails()
+
+                print(f"'{SUB_MENU_UPDATE[User_Choice-1]}' Field UPDATED Successfully...")
                 input('\nPress ENTER Key To Continue...')
                 MAIN_MENU_FUNCTION()
 
@@ -1314,6 +1350,7 @@ def MAIN_MENU_FUNCTION():
 
 # Calling MAIN_MENU
 MAIN_MENU_FUNCTION()
+
 
 # Close cursor and connection
 cursor.close()
