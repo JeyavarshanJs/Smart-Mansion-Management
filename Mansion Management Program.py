@@ -528,6 +528,7 @@ def GenerateShopRentReceipt_ALL():
             print('Preference ACCEPTED...')
         else:            
             print('INVALID Month Name, TRY AGAIN...')
+    PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
 
     Date = Today.strftime(r'%d/%m/%Y')
     cursor.execute(f"SELECT [Tenant ID], [Individual Rent], [Year (YYYY)], [Receipt Number], [Tenant Name], [Room/Shop ID] \
