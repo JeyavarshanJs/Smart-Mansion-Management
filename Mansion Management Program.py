@@ -20,7 +20,7 @@ def PrintSetup_ROOM(ReceiptNumber, TenantName):
 # UPDATE
 def Update_TenantName_Field(TableName):
     if TableName == SUB_MENU_UPDATE_TenantName[1]:
-        cursor.execute("SELECT [Tenant ID] FROM [Occupancy Information] WHERE [Tenant ID] IS NOT NULL;")
+        cursor.execute("SELECT [Tenant ID] FROM [Occupancy Information] WHERE [Tenant ID] IS NOT NULL order by [room/shop id];")
         records = cursor.fetchall()
         for record in records:
             ID = record[0]
@@ -59,7 +59,8 @@ def Update_TotalRent_Field():
         TotalTenantCount += Record[1] if Record[0] in Room_IDs else 0
         
     cursor.execute(f"SELECT SUM([Amount]) FROM [Water Purchase Details] WHERE [For The Month Of] = '{Month}'")
-    TotalWaterCharge = math.ceil(cursor.fetchone())
+    Data = cursor.fetchone()
+    TotalWaterCharge = math.ceil(Data[0]) if Data[0] != None else 0
 
     cursor.execute("SELECT * FROM [Room/Shop Data] ORDER BY [Room/Shop ID]")
     records = cursor.fetchall()
@@ -87,10 +88,10 @@ def Update_TotalRent_Field():
         Closing_Reading = Data[1]
         Opening_Reading = Data[2]
         if ID in Room_IDs:
-            Total_Rent = math.ceil((Room_Rent + Other_Charges)/30 * Days_Occupied + (Closing_Reading - Opening_Reading)*Current_Charge) \
+            Total_Rent = math.ceil((Room_Rent + Other_Charges)/30 * Days_Occupied + math.ceil((Closing_Reading - Opening_Reading)*float(Current_Charge))) \
                 + math.ceil(TotalWaterCharge / TotalTenantCount) if (Room_Rent + Other_Charges) != 0 else 0
         else:
-            Total_Rent = math.ceil((Room_Rent + Other_Charges)/30 * Days_Occupied + (Closing_Reading - Opening_Reading)*Current_Charge) \
+            Total_Rent = math.ceil((Room_Rent + Other_Charges)/30 * Days_Occupied + math.ceil((Closing_Reading - Opening_Reading)*float(Current_Charge))) \
                                     if (Room_Rent + Other_Charges) != 0 else 0
 
         cursor.execute(f"UPDATE [Monthly Report Data] SET [Total Rent] = ? WHERE [Room/Shop ID] = ? AND \
@@ -110,6 +111,7 @@ def Update_IndividualRent_Field():
             break
         else:
             print('INVALID Month Name, TRY AGAIN...')
+    PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
 
     cursor.execute(f"SELECT [Tenant ID], [Room/Shop ID] FROM [Payment Details] WHERE [For The Month Of] = '{Month}';")
     records = cursor.fetchall()
@@ -133,8 +135,9 @@ def Update_IndividualRent_Field():
                 else:
                     print('INVALID Tenant Count, TRY AGAIN...')
 
-        cursor.execute(f"SELECT [DUE Amount] FROM [DUE Details] WHERE [Tenant ID] = '{TenantID}' AND [For The Month Of] = '{Month}';")
-        BalanceDue = cursor.fetchone()[0]
+        cursor.execute(f"SELECT [DUE Amount] FROM [DUE Details] WHERE [Tenant ID] = '{TenantID}' AND [For The Month Of] = '{PreviousMonth}';")
+        RawData = cursor.fetchone()
+        BalanceDue = RawData[0] if RawData != None else 0
 
         IndividualRent = math.ceil(TotalRent / TenantCount) + int(BalanceDue)
 
@@ -236,7 +239,8 @@ def GenerateRoomRentReceipt_ALL():
 
         cursor.execute(f"SELECT [DUE Amount] FROM [DUE Details] WHERE [Tenant ID] = '{TenantID}' AND [Room/Shop ID] = '{ID}' \
                        AND [For The Month Of] = '{Month}';")
-        BalanceDue = cursor.fetchone()[0]
+        RawData = cursor.fetchone()
+        BalanceDue = RawData[0] if RawData != None else 0
 
         cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading] \
                        FROM [Monthly report Data] WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
@@ -414,7 +418,8 @@ def GenerateRoomRentReceipt_SPECIFIC():
 
         cursor.execute(f"SELECT [DUE Amount] FROM [DUE Details] WHERE [Tenant ID] = '{TenantID}' AND [Room/Shop ID] = '{ID}' \
                        AND [For The Month Of] = '{Month}';")
-        BalanceDue = cursor.fetchone()[0]
+        RawData = cursor.fetchone()
+        BalanceDue = RawData[0] if RawData != None else 0
 
         cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading] \
                         FROM [Monthly report Data] WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
@@ -553,7 +558,8 @@ def GenerateShopRentReceipt_ALL():
 
         cursor.execute(f"SELECT [DUE Amount] FROM [DUE Details] WHERE [Tenant ID] = '{TenantID}' AND [Room/Shop ID] = '{ID}' \
                        AND [For The Month Of] = '{Month}';")
-        BalanceDue = cursor.fetchone()[0]
+        RawData = cursor.fetchone()
+        BalanceDue = RawData[0] if RawData != None else 0
 
         cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading], [Closing Date] \
                        FROM [Monthly report Data] WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
@@ -567,7 +573,10 @@ def GenerateShopRentReceipt_ALL():
         ClosingDate = datetime.date.strftime(RawClosingDate, r'%d/%m/%Y')
         UnitsConsumed = ClosingReading - OpeningReading
         
-        OpeningDate = '01/02/2024'
+        cursor.execute(f"SELECT DISTINCT [Closing Date] FROM [Monthly Report Data] WHERE [For The Month Of] = '{PreviousMonth}'")
+        RawData = cursor.fetchone()
+        RawOpeningDate = RawData[0] if RawData != None else '----------'
+        OpeningDate = datetime.date.strftime(RawOpeningDate, r'%d/%m/%Y')
 
         if DatePreference == 'Without Month':
             Date = Date[-5:]
@@ -727,7 +736,8 @@ def GenerateShopRentReceipt_SPECIFIC():
 
         cursor.execute(f"SELECT [DUE Amount] FROM [DUE Details] WHERE [Tenant ID] = '{TenantID}' AND [Room/Shop ID] = '{ID}' \
                        AND [For The Month Of] = '{Month}';")
-        BalanceDue = cursor.fetchone()[0]
+        RawData = cursor.fetchone()
+        BalanceDue = RawData[0] if RawData != None else 0
 
         cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading], [Closing Date] \
                        FROM [Monthly report Data] WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
@@ -741,7 +751,10 @@ def GenerateShopRentReceipt_SPECIFIC():
         ClosingDate = datetime.date.strftime(RawClosingDate, r'%d/%m/%Y')
         UnitsConsumed = ClosingReading - OpeningReading        
 
-        OpeningDate = '01/02/2024'
+        cursor.execute(f"SELECT DISTINCT [Closing Date] FROM [Monthly Report Data] WHERE [For The Month Of] = '{PreviousMonth}'")
+        RawData = cursor.fetchone()
+        RawOpeningDate = RawData[0] if RawData != None else '----------'
+        OpeningDate = datetime.date.strftime(RawOpeningDate, r'%d/%m/%Y')
 
         if DatePreference == 'Without Date':
             Date = Date[-8:]
@@ -868,6 +881,18 @@ def CheckConsistency_ID():
 # DUPLICATE RECORDS
 def DuplicateRecords_MonthlyReportData():
     Today = datetime.date.today()
+    while True:
+        Date = input('\nEnter The Desired Date (DD/MM/YYYY): ').upper()
+        Date = Today.strftime(r'%d/%m/%Y').upper() if Date == '' else Date
+
+        try:
+            Date = datetime.datetime.strptime(Date, r'%d/%m/%Y')
+            Date = datetime.date.strftime(Date, r'%Y-%m-%d')
+            break
+        except:            
+            print('INVALID Date, TRY AGAIN...')
+            continue
+
     Month = calendar.month_name[Today.month].upper()
     PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
     
@@ -876,8 +901,8 @@ def DuplicateRecords_MonthlyReportData():
     for Record in Records:
         ID = Record[0]
         OpeningReading = Record[1]
-        cursor.execute(f"INSERT INTO [Monthly Report Data] ([Room/Shop ID], [Opening Sub-Meter Reading], [For The Month Of]) \
-                       VALUES ('{ID}', {OpeningReading}, '{Month}');")
+        cursor.execute(f"INSERT INTO [Monthly Report Data] ([Room/Shop ID], [Opening Sub-Meter Reading], [Closing Date], [For The Month Of]) \
+                       VALUES (?, ?, ?, ?);", (ID, OpeningReading, Date, Month))
         cursor.commit()     
 
 def DuplicateRecords_DUEDetails():
@@ -906,7 +931,7 @@ def DuplicateRecords_PaymentDetails():
 
     for ID in list(Room_IDs + Shop_IDs):
         cursor.execute(f"SELECT [Tenant ID], [Tenant Name] FROM [Occupancy Information] \
-                       WHERE [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL AND [Tenant ID] IS NOT NULL")
+                       WHERE [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL AND [Tenant ID] IS NOT NULL ORDER BY [Room/Shop ID]")
         Records = cursor.fetchall()
         if Records != []:
             for Record in Records:
@@ -958,19 +983,33 @@ def FetchData_UNPAID_Tenants():
                    FROM [Payment Details] WHERE Status = 'UNPAID' ORDER BY [Room/Shop ID]")
     RawRecords = cursor.fetchall()
 
-    Table = PrettyTable()
-    Table.field_names = ['Tenant ID', 'Tenant Name', 'Room/Shop ID', 'Total Amount', 'Phone Number', 'For The Month Of']
-    Table.align['Tenant Name'] = 'l'
+    DetailsTable = PrettyTable()
+    DetailsTable.field_names = ['Tenant ID', 'Tenant Name', 'Room/Shop ID', 'Total Amount', 'Phone Number', 'For The Month Of']
+    DetailsTable.align['Tenant Name'] = 'l'
 
     for Record in RawRecords:
         cursor.execute(f"SELECT [Phone Number] FROM [Tenant's Information] WHERE [ID] = '{Record[0]}'")
         PhoneNumber = cursor.fetchone()[0]
         Record = list(Record[:4]) + [PhoneNumber] + list(Record[4:])
         Record[3] = int(Record[3])
-        Table.add_row(Record)
+        DetailsTable.add_row(Record)
 
     print()
-    print(Table)
+    print(DetailsTable)
+
+    SUMTable = PrettyTable()
+    SUMTable.field_names = ['Total DUE', 'For The Month Of']
+    cursor.execute("SELECT SUM([Individual Rent]), [For The Month Of] \
+                   FROM [Payment Details] WHERE Status = 'UNPAID' GROUP BY [For The Month Of] ORDER BY SUM([Individual Rent])")
+    RawRecords = cursor.fetchall()
+
+    for Record in RawRecords:
+        Record = list(Record)
+        Record[0] = '{:,}'.format(int(Record[0]))
+        SUMTable.add_row(Record)
+
+    print()
+    print(SUMTable)
 
 def FetchData_OccupiedSpaceID_FROM_TenantID():
     print("\n\n----ENTER 'STOP' TO QUIT----")
@@ -994,6 +1033,18 @@ def FetchData_OccupiedSpaceID_FROM_TenantID():
                 print(f'{Record[0]}', end=', ') if Record != Records[-1] else print(Record[0])
         else:
             print('No Records Found, TRY AGAIN...')
+
+def FetchData_GetTenantDetails():
+    print("\n\n----ENTER 'STOP' TO QUIT----")
+    while True:
+        print('''\nADD,
+            >>  '1-' To Search Tenant With Tenant_ID
+            >>  '2- To Search Tenant With Tenant_Name
+            >>  '3-' To Search Tenant with Room_ID''')
+        Hint = input('Enter Some Hint To Search For Tenant Details: ').strip().upper()
+        if Hint.startswith('1-'):
+            Hint = Hint[2:].strip()
+            cursor.execute(f"SELECT")
 
 def FetchDate_Vacancy():
     VacancyCount = 0
@@ -1027,9 +1078,36 @@ def FetchData_TotalCashReceived():
     TotalCashReceived = '{:,}'.format(TotalCashReceived)
     print(f'\nTotal Cash Received For The Month Of {Month}:', TotalCashReceived)
 
+def FetchData_UnitsConsumed():
+    Today = datetime.date.today()
+    while True:
+        Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
+        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
+        if Month in MonthNames.keys():
+            Month = MonthNames[Month]
+            break
+        elif Month in MonthNames.values():
+            break
+        else:            
+            print('INVALID Month Name, TRY AGAIN...')
+
+    cursor.execute(f"SELECT [Room/Shop ID], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading] FROM [Monthly Report Data] \
+                   WHERE [For The Month Of] = '{Month}' ORDER BY [Room/Shop ID];")
+    Records = cursor.fetchall()
+
+    Table = PrettyTable()
+    Table.field_names = ['Room/Shop ID', 'Units Consumed']
+    for Record in Records:
+        UnitsConsumed = round(Record[1] - Record[2], 1) if Record[1] != None and Record[2] != None else '----'
+        print((Record[0], UnitsConsumed))
+        Table.add_row([Record[0], UnitsConsumed])
+
+    print()
+    print(Table)
+
 # Establish Connection
 try:
-    con = pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=D:\Python Projects\Smart Mansion Management\Database (MS Access).accdb;')
+    con = pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=D:\Python Projects\Smart-Mansion-Management\Database (MS Access).accdb;')
 except:
     print('Database Connection FAILED') 
 
@@ -1056,7 +1134,7 @@ SUB_MENU_CHECK_FOR_CONSISTENCY = ['BACK', 'Receipt Number', 'Room_ID AND Shop_ID
 SUB_MENU_DUPLICATE_RECORDS = ['BACK', 'Monthly Report Data', 'DUE Details', 'Payment Details']
 
 SUB_MENU_FETCH_DATA = ['BACK', 'Tenant_ID --> Tenant_Name', 'Tenant_Name --> Tenant_ID', 'Room/Shop_ID --> TenantID', \
-                       'UNPAID Tenants', 'Vacant Room/Shop', 'Total Cash Received']
+                       'UNPAID Tenants', 'Get Tenant Details', 'Vacant Room/Shop', 'Total Cash Received', 'Units Consumed']
 
 # GETTING USER'S PREFERENCE
 def MAIN_MENU_FUNCTION():
@@ -1337,13 +1415,25 @@ def MAIN_MENU_FUNCTION():
             MAIN_MENU_FUNCTION()
 
         elif User_Choice == 6:
-            FetchDate_Vacancy()
+            FetchData_GetTenantDetails()
 
             input('\nPress ENTER Key To Continue...')
             MAIN_MENU_FUNCTION()
 
         elif User_Choice == 7:
+            FetchDate_Vacancy()
+
+            input('\nPress ENTER Key To Continue...')
+            MAIN_MENU_FUNCTION()
+
+        elif User_Choice == 8:
             FetchData_TotalCashReceived()
+
+            input('\nPress ENTER Key To Continue...')
+            MAIN_MENU_FUNCTION()
+
+        elif User_Choice == 9:
+            FetchData_UnitsConsumed()
 
             input('\nPress ENTER Key To Continue...')
             MAIN_MENU_FUNCTION()
