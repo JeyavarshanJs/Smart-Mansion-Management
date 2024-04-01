@@ -1,6 +1,6 @@
 import pyodbc
 import math, datetime, calendar
-import os, sys
+import os, sys, shutil, win32file
 from PIL import Image, ImageDraw, ImageFont
 from prettytable import PrettyTable
 
@@ -14,8 +14,76 @@ def PrintSetup_ROOM(ReceiptNumber, TenantName):
     PrintSetup.paste(Receipt_1, (0, 0))
     PrintSetup.paste(Recepit_2, (0, Receipt_1.height))
 
-    PrintSetup.save(rf"Final Print/Room {ReceiptNumber}_{TenantName}.pdf", dpi = (300, 300))
+    OutputPath = rf"Final Print/Room {ReceiptNumber}_{TenantName}.pdf"
+    PrintSetup.save(OutputPath, dpi = (300, 300))
+    Drive = CopyReceipt_To_ExternalDrive(OutputPath)
+    if Drive != None:
+        print(f"And Successfully Copied To The External Removable Drive '{Drive}'\n")
 
+def PrintSetup_SHOP_1(ReceiptNumber, TenantName):
+    Receipt = Image.open(rf"Rent Receipts\Shop {ReceiptNumber}_{TenantName}-1.jpg")
+
+    PrintSetup = Image.new('RGB', (2244, 1535), (255, 255, 255))
+
+    PrintSetup.paste(Receipt, (0, 0))
+
+    OutputPath = rf"Final Print/Shop {ReceiptNumber}_{TenantName}-1.pdf"
+    PrintSetup.save(OutputPath, dpi = (300, 300))
+    CopyReceipt_To_ExternalDrive(OutputPath)
+
+def PrintSetup_SHOP_2(ReceiptNumber, TenantName):
+    Receipt = Image.open(rf"Rent Receipts\Shop {ReceiptNumber}_{TenantName}-2.jpg")
+
+    PrintSetup = Image.new('RGB', (1122, 1535), (255, 255, 255))
+
+    PrintSetup.paste(Receipt, (0, 0))
+
+    OutputPath = rf"Final Print/Shop {ReceiptNumber}_{TenantName}-2.pdf"
+    PrintSetup.save(OutputPath, dpi = (300, 300))
+    Drive = CopyReceipt_To_ExternalDrive(OutputPath)
+    if Drive != None:
+        print(f"And Successfully Copied To The External Removable Drive '{Drive}'\n")
+
+
+def CopyReceipt_To_ExternalDrive(SourceFile):
+    global ChosenDrive
+    if ChosenDrive == '':
+        AvailableDrives = [chr(i) + ':' for i in range(65, 91) if os.path.exists(chr(i) + ':')]
+        AvailableRemovableDrives = [Drive for Drive in AvailableDrives if win32file.GetDriveType(Drive) == win32file.DRIVE_REMOVABLE]
+
+        if len(AvailableRemovableDrives) == 1:
+            TargetDIR = os.path.join(AvailableRemovableDrives[0], 'Rent Receipt Final Print')
+            os.makedirs(TargetDIR, exist_ok=True)
+            shutil.copy(SourceFile, TargetDIR)
+            return AvailableRemovableDrives[0]
+        elif len(AvailableDrives) != 0:
+            print('\n', '-' * 50, sep='')
+            print(f"{len(AvailableRemovableDrives)} Removalbe Drives FOUND, Choose One From The List Below")
+            print(AvailableRemovableDrives)
+            print('-' * 50, '\n', sep='')
+
+            while True:
+                ChosenDrive = input('Enter The Deceired Drive: ').strip().upper()
+                if ChosenDrive.endswith(':') and len(ChosenDrive) == 2 and ChosenDrive[0] in AvailableRemovableDrives:
+                    break
+                elif len(ChosenDrive) == 1 and (ChosenDrive + ':') in AvailableRemovableDrives:
+                    ChosenDrive += ':'
+                    break
+                else:
+                    print('INVALID Drive Chosen, TRY AGAIN...\n')
+
+            TargetDIR = os.path.join(ChosenDrive, 'Rent Receipt Final Print')
+            os.makedirs(TargetDIR, exist_ok=True)
+            shutil.copy(SourceFile, TargetDIR)
+            return ChosenDrive
+        else:
+            return None
+    else:                
+        TargetDIR = os.path.join(ChosenDrive, 'Rent Receipt Final Print')
+        os.makedirs(TargetDIR, exist_ok=True)
+        shutil.copy(SourceFile, TargetDIR)
+        return ChosenDrive
+    
 
 # UPDATE
 def Update_TenantName_Field(TableName):
@@ -61,7 +129,7 @@ def Update_TotalRent_Field():
     cursor.execute(f"SELECT SUM([Amount]) FROM [Water Purchase Details] WHERE [For The Month Of] = '{Month}'")
     Data = cursor.fetchone()
     TotalWaterCharge = math.ceil(Data[0]) if Data[0] != None else 0
-
+    print(TotalWaterCharge, TotalTenantCount, math.ceil(TotalWaterCharge / TotalTenantCount))
     cursor.execute("SELECT * FROM [Room/Shop Data] ORDER BY [Room/Shop ID]")
     records = cursor.fetchall()
     for record in records:
@@ -190,7 +258,7 @@ def GenerateRoomRentReceipt_ALL():
         Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
         if DatePreference == '':
             DatePreference = 'Without Month' if Month.upper() == 'WITHOUT MONTH' else ''
-        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
+        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
             break
@@ -201,6 +269,7 @@ def GenerateRoomRentReceipt_ALL():
         else:            
             print('INVALID Month Name, TRY AGAIN...')
 
+    print()
     Date = Today.strftime(r'%d/%m/%Y')
     cursor.execute(f"SELECT [Tenant ID], [Individual Rent], [Year (YYYY)], [Receipt Number], [Tenant Name], [Room/Shop ID] \
                    FROM [Payment Details] WHERE [Status] = 'UNPAID' AND [For The Month Of] = '{Month}';")
@@ -225,7 +294,7 @@ def GenerateRoomRentReceipt_ALL():
         cursor.execute(f"SELECT [Tenant Count], [Rent-1], [Rent-2], [Rent-3] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}'")
         Datas = cursor.fetchone()
         # Tenant Count
-        if Month == calendar.month_name[Today.month].upper():
+        if Month == calendar.month_name[Today.month-1].upper():
             TenantCount = Datas[0]
         else:
             while True:
@@ -248,9 +317,9 @@ def GenerateRoomRentReceipt_ALL():
         Days_Occupied = Datas[0]
         Room_Rent = math.ceil((Room_Rent * Days_Occupied)/30)
         UtilityCharges = FinalAmount - Room_Rent - int(BalanceDue)
-        ClosingReading = Datas[1]
-        OpeningReading = Datas[2]
-        UnitsConsumed = ClosingReading - OpeningReading
+        ClosingReading = round(Datas[1], 1)
+        OpeningReading = round(Datas[2], 1)
+        UnitsConsumed = round(ClosingReading - OpeningReading, 1)
         
         if DatePreference == 'Without Month':
             Date = Date[-5:]
@@ -329,8 +398,8 @@ def GenerateRoomRentReceipt_ALL():
 
         Template.save(rf'Rent Receipts\Room {ReceiptNumber}_{TenantName}-2.jpg', dpi = (300, 300))
 
-        PrintSetup_ROOM(ReceiptNumber, TenantName)
         print(f"Rent Receipts generated for '{TenantName}'.")
+        PrintSetup_ROOM(ReceiptNumber, TenantName)
 
 def GenerateRoomRentReceipt_SPECIFIC():
     Today = datetime.date.today() 
@@ -340,7 +409,7 @@ def GenerateRoomRentReceipt_SPECIFIC():
         if DatePreference == '':
             DatePreference = 'Without Date' if Month.upper() == 'WITHOUT DATE' else 'Without Month' \
                                             if Month.upper() == 'WITHOUT MONTH' else ''
-        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
+        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
             break
@@ -384,6 +453,7 @@ def GenerateRoomRentReceipt_SPECIFIC():
         else:
             break
 
+    print()
     Date = Today.strftime(r'%d/%m/%Y')
     for ReceiptNumber in ReceiptNumber_List:
         cursor.execute(f"SELECT [Individual Rent], [Year (YYYY)], [Tenant ID], [Tenant Name], [Room/Shop ID] FROM [Payment Details] \
@@ -404,7 +474,7 @@ def GenerateRoomRentReceipt_SPECIFIC():
         cursor.execute(f"SELECT [Tenant Count], [Rent-1], [Rent-2], [Rent-3] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}'")
         Datas = cursor.fetchone()
         # Tenant Count
-        if Month == calendar.month_name[Today.month].upper():
+        if Month == calendar.month_name[Today.month-1].upper():
             TenantCount = Datas[0]
         else:
             while True:
@@ -427,9 +497,9 @@ def GenerateRoomRentReceipt_SPECIFIC():
         Days_Occupied = Datas[0]
         Room_Rent = math.ceil((Room_Rent * Days_Occupied)/30)
         UtilityCharges = FinalAmount - Room_Rent - int(BalanceDue)
-        ClosingReading = Datas[1]
-        OpeningReading = Datas[2]
-        UnitsConsumed = ClosingReading - OpeningReading        
+        ClosingReading = round(Datas[1], 1)
+        OpeningReading = round(Datas[2], 1)
+        UnitsConsumed = round(ClosingReading - OpeningReading, 1)
 
         if DatePreference == 'Without Date':
             Date = Date[-8:]
@@ -508,8 +578,8 @@ def GenerateRoomRentReceipt_SPECIFIC():
 
         Template.save(rf'Rent Receipts\Room {ReceiptNumber}_{TenantName}-2.jpg', dpi = (300, 300))
 
-        PrintSetup_ROOM(ReceiptNumber, TenantName)
         print(f"Rent Receipts generated for '{TenantName}'.")
+        PrintSetup_ROOM(ReceiptNumber, TenantName)
 
 def GenerateShopRentReceipt_ALL():
     Today = datetime.date.today()
@@ -518,7 +588,7 @@ def GenerateShopRentReceipt_ALL():
         Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
         if DatePreference == '':
             DatePreference = 'Without Month' if Month.upper() == 'WITHOUT MONTH' else ''
-        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
+        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
             break
@@ -530,6 +600,7 @@ def GenerateShopRentReceipt_ALL():
             print('INVALID Month Name, TRY AGAIN...')
     PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
 
+    print()
     Date = Today.strftime(r'%d/%m/%Y')
     cursor.execute(f"SELECT [Tenant ID], [Individual Rent], [Year (YYYY)], [Receipt Number], [Tenant Name], [Room/Shop ID] \
                    FROM [Payment Details] WHERE [Status] = 'UNPAID' AND [For The Month Of] = '{Month}';")
@@ -568,11 +639,11 @@ def GenerateShopRentReceipt_ALL():
         Days_Occupied = Datas[0]
         Shop_Rent = math.ceil((Shop_Rent * Days_Occupied)/30)
         UtilityCharges = FinalAmount - Shop_Rent - int(BalanceDue)
-        ClosingReading = Datas[1]
-        OpeningReading = Datas[2]
+        ClosingReading = round(Datas[1], 1)
+        OpeningReading = round(Datas[2], 1)
         RawClosingDate = Datas[3]
         ClosingDate = datetime.date.strftime(RawClosingDate, r'%d/%m/%Y')
-        UnitsConsumed = ClosingReading - OpeningReading
+        UnitsConsumed = round(ClosingReading - OpeningReading, 1)
         
         cursor.execute(f"SELECT DISTINCT [Closing Date] FROM [Monthly Report Data] WHERE [For The Month Of] = '{PreviousMonth}'")
         RawData = cursor.fetchone()
@@ -658,6 +729,8 @@ def GenerateShopRentReceipt_ALL():
         Template.save(rf'Rent Receipts\Shop {ReceiptNumber}_{TenantName}-2.jpg', dpi = (300, 300))
 
         print(f"Rent Receipts generated for '{TenantName}'.") 
+        PrintSetup_SHOP_1(ReceiptNumber, TenantName)
+        PrintSetup_SHOP_2(ReceiptNumber, TenantName)
 
 def GenerateShopRentReceipt_SPECIFIC():
     Today = datetime.date.today() 
@@ -667,7 +740,7 @@ def GenerateShopRentReceipt_SPECIFIC():
         if DatePreference == '':
             DatePreference = 'Without Date' if Month.upper() == 'WITHOUT DATE' else 'Without Month' \
                                             if Month.upper() == 'WITHOUT MONTH' else ''
-        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
+        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
             break
@@ -712,6 +785,7 @@ def GenerateShopRentReceipt_SPECIFIC():
             break
     PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
 
+    print()
     Date = Today.strftime(r'%d/%m/%Y')
     for ReceiptNumber in ReceiptNumber_List:
         cursor.execute(f"SELECT [Individual Rent], [Year (YYYY)], [Tenant ID], [Tenant Name], [Room/Shop ID] FROM [Payment Details] \
@@ -746,17 +820,17 @@ def GenerateShopRentReceipt_SPECIFIC():
         Days_Occupied = Datas[0]
         Shop_Rent = math.ceil((Shop_Rent * Days_Occupied)/30)
         UtilityCharges = FinalAmount - Shop_Rent - int(BalanceDue)
-        ClosingReading = Datas[1]
-        OpeningReading = Datas[2]
+        ClosingReading = round(Datas[1], 1)
+        OpeningReading = round(Datas[2], 1)
         RawClosingDate = Datas[3]
         ClosingDate = datetime.date.strftime(RawClosingDate, r'%d/%m/%Y')
-        UnitsConsumed = ClosingReading - OpeningReading        
+        UnitsConsumed = round(ClosingReading - OpeningReading, 1)
 
         cursor.execute(f"SELECT DISTINCT [Closing Date] FROM [Monthly Report Data] WHERE [For The Month Of] = '{PreviousMonth}'")
         RawData = cursor.fetchone()
         RawOpeningDate = RawData[0] if RawData != None else '----------'
-        OpeningDate = datetime.date.strftime(RawOpeningDate, r'%d/%m/%Y')
-
+        OpeningDate = datetime.date.strftime(RawOpeningDate, r'%d/%m/%Y') if RawOpeningDate != '----------' else '----------'
+        OpeningDate = '01/02/2024'
         if DatePreference == 'Without Date':
             Date = Date[-8:]
         elif DatePreference == 'Without Month':
@@ -836,6 +910,8 @@ def GenerateShopRentReceipt_SPECIFIC():
         Template.save(rf'Rent Receipts\Shop {ReceiptNumber}_{TenantName}-2.jpg', dpi = (300, 300))
 
         print(f"Rent Receipts generated for '{TenantName}'.") 
+        PrintSetup_SHOP_1(ReceiptNumber, TenantName)
+        PrintSetup_SHOP_2(ReceiptNumber, TenantName)
 
 
 # CHECK FOR CONSISTENCY
@@ -930,9 +1006,9 @@ def DuplicateRecords_PaymentDetails():
     cursor.execute("SELECT MAX([Receipt Number]) FROM [Payment Details]")
     ReceiptNumber = int(cursor.fetchone()[0]) + 1
 
-    for ID in list(Room_IDs + Shop_IDs):
+    for ID in list(Shop_IDs + Room_IDs):
         cursor.execute(f"SELECT [Tenant ID], [Tenant Name] FROM [Occupancy Information] \
-                       WHERE [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL AND [Tenant ID] IS NOT NULL ORDER BY [Room/Shop ID]")
+                       WHERE [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL AND [Tenant ID] IS NOT NULL")
         Records = cursor.fetchall()
         if Records != []:
             for Record in Records:
@@ -1001,7 +1077,7 @@ def FetchData_UNPAID_Tenants():
     SUMTable = PrettyTable()
     SUMTable.field_names = ['Total DUE', 'For The Month Of']
     cursor.execute("SELECT SUM([Individual Rent]), [For The Month Of] \
-                   FROM [Payment Details] WHERE Status = 'UNPAID' GROUP BY [For The Month Of] ORDER BY SUM([Individual Rent])")
+                   FROM [Payment Details] WHERE Status = 'UNPAID' GROUP BY [For The Month Of] ORDER BY SUM([Individual Rent]) DESC")
     RawRecords = cursor.fetchall()
 
     for Record in RawRecords:
@@ -1115,10 +1191,14 @@ except:
 # Create a Cursor
 cursor = con.cursor()
 
-# Global Variables
-MonthNames = {'JAN': 'JANUARY', 'FEB': 'FEBRUARY', 'MAR': 'MARCH', 'APR': 'APRIL', 'MAY': 'MAY', 'JUN': 'JUNE', 'JUL': 'JULY', 'AUG': 'AUGUST', 'SEP': 'SEPTEMBER', 'OCT': 'OCTOBER', 'NOV': 'NOVEMBER', 'DEC': 'DECEMBER'}
+# Global Static Variables
+MonthNames = {'JAN': 'JANUARY', 'FEB': 'FEBRUARY', 'MAR': 'MARCH', 'APR': 'APRIL', 'MAY': 'MAY', 'JUN': 'JUNE', 'JUL': 'JULY', \
+              'AUG': 'AUGUST', 'SEP': 'SEPTEMBER', 'OCT': 'OCTOBER', 'NOV': 'NOVEMBER', 'DEC': 'DECEMBER'}
 Room_IDs = ['202', '203', '204', '205', '206', '207', '208', '301', '302', '303', '304', '305', '306', '307', '308', 'S2', 'S3']
-Shop_IDs = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'A1', 'A2', 'A3', '101', '102', '103', '104', '105', '106', '107', '108', 'S1', 'MILL']
+Shop_IDs = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'A1', 'A2', 'A3', '101', '102', '103', '104', '105', '106', '107', '108', '201', 'S1', 'MILL']
+
+# Global Dynamic Variables
+ChosenDrive = ''
 
 # MENU AND SUB_MENU
 MAIN_MENU = ['EXIT', 'UPDATE', 'GENERATE RENT RECEIPT', 'CHECK FOR CONSISTENCY', 'DUPLICATE RECORDS', 'FETCH DATA', 'CUSTOM ACTION']
@@ -1139,6 +1219,9 @@ SUB_MENU_FETCH_DATA = ['BACK', 'Tenant_ID --> Tenant_Name', 'Tenant_Name --> Ten
 
 # GETTING USER'S PREFERENCE
 def MAIN_MENU_FUNCTION():
+    global ChosenDrive
+    ChosenDrive = ''
+
     print("\n\nMAIN MENU:")
     for i, Choice in enumerate(MAIN_MENU):
         print(f'{i+1})', Choice)
