@@ -1,5 +1,5 @@
 import pyodbc
-import math, datetime, calendar
+import math, datetime, calendar, time
 import os, sys, shutil, win32file
 from PIL import Image, ImageDraw, ImageFont
 from prettytable import PrettyTable
@@ -18,7 +18,7 @@ def PrintSetup_ROOM(ReceiptNumber, TenantName):
     PrintSetup.save(OutputPath, dpi = (300, 300))
     Drive = CopyReceipt_To_ExternalDrive(OutputPath)
     if Drive != None:
-        print(f"And Successfully Copied To The External Removable Drive '{Drive}'\n")
+        print(f">> Successfully Copied To The External Removable Drive '{Drive}' <<\n")
 
 def PrintSetup_SHOP_1(ReceiptNumber, TenantName):
     Receipt = Image.open(rf"Rent Receipts\Shop {ReceiptNumber}_{TenantName}-1.jpg")
@@ -42,7 +42,7 @@ def PrintSetup_SHOP_2(ReceiptNumber, TenantName):
     PrintSetup.save(OutputPath, dpi = (300, 300))
     Drive = CopyReceipt_To_ExternalDrive(OutputPath)
     if Drive != None:
-        print(f"And Successfully Copied To The External Removable Drive '{Drive}'\n")
+        print(f">> Successfully Copied To The External Removable Drive '{Drive}' <<\n")
 
 
 def CopyReceipt_To_ExternalDrive(SourceFile):
@@ -1057,7 +1057,7 @@ def FetchData_TenantID_FROM_TenantName():
 
 def FetchData_UNPAID_Tenants():
     cursor.execute("SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Individual Rent], [For The Month OF] \
-                   FROM [Payment Details] WHERE Status = 'UNPAID' ORDER BY [Room/Shop ID]")
+                   FROM [Payment Details] WHERE Status = 'UNPAID' ORDER BY [For The Month Of], [Room/Shop ID]")
     RawRecords = cursor.fetchall()
 
     DetailsTable = PrettyTable()
@@ -1141,7 +1141,7 @@ def FetchData_TotalCashReceived():
     Today = datetime.date.today()
     while True:
         Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
-        Month = calendar.month_name[Today.month].upper() if Month == '' else Month
+        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
         if Month in MonthNames.keys():
             Month = MonthNames[Month]
             break
@@ -1153,7 +1153,7 @@ def FetchData_TotalCashReceived():
     cursor.execute(f"SELECT SUM([Total Rent]) FROM [Monthly Report Data] WHERE [For The Month Of] = '{Month}'")
     TotalCashReceived = int(cursor.fetchone()[0])
     TotalCashReceived = '{:,}'.format(TotalCashReceived)
-    print(f'\nTotal Cash Received For The Month Of {Month}:', TotalCashReceived)
+    print(f'\nTotal Cash Received For The Month Of {Month}:', TotalCashReceived, '\n')
 
 def FetchData_UnitsConsumed():
     Today = datetime.date.today()
@@ -1181,6 +1181,19 @@ def FetchData_UnitsConsumed():
 
     print()
     print(Table)
+
+
+# Checking Basic Requirements
+os.makedirs('Final Print', exist_ok=True)
+os.makedirs('Rent Receipts', exist_ok=True)
+if not(os.path.exists(r'Static Templates\Room Rent Receipt-1.jpg') and os.path.exists(r'Static Templates\Room Rent Receipt-2.jpg') and \
+       os.path.exists(r'Static Templates\Shop Rent Receipt-1.jpg') and os.path.exists(r'Static Templates\Shop Rent Receipt-2.jpg') and \
+       os.path.exists('CalibriFont Bold.ttf') and os.path.exists('CalibriFont Regular.ttf')): 
+    print('\n', '-' * 50, sep='')
+    print('Requirements NOT SATISIFIED!! Some Files May Be Missing, TRY AGAIN...')
+    print('-' * 50, '\n', sep='')
+    time.sleep(3)
+    sys.exit()  
 
 # Establish Connection
 try:
@@ -1236,7 +1249,11 @@ def MAIN_MENU_FUNCTION():
 
     
     if User_Choice == 1:
-        sys.exit('User TRIGGERED Exit Command')
+        print('\n', '-' * 50, sep='')
+        print('User TRIGGERED Exit Command...')
+        print('-' * 50, '\n', sep='')
+        time.sleep(1)
+        sys.exit()  
 
     elif User_Choice == 2:
         def SUB_MENU_UPDATE_FUNCTION():
