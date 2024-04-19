@@ -1,4 +1,4 @@
-import datetime, calendar
+import math, datetime, calendar
 from prettytable import PrettyTable
 
 from CustomModules.VariablesModule import *
@@ -43,11 +43,11 @@ def FetchData_TenantID_FROM_TenantName():
 def FetchData_TenantID_FROM_OccupiedSpaceID():
     print("\n\n----ENTER 'STOP' TO QUIT----")
     while True:
-        ID = input('\nEnter The Room/Shop ID: ').strip()
-        if ID.upper() == 'STOP':
+        ID = input('\nEnter The Room/Shop ID: ').strip().upper()
+        if ID == 'STOP':
+            print()
             break
-
-        if ID not in list(Shop_IDs + Room_IDs):
+        elif ID not in list(Shop_IDs + Room_IDs):
             print('INVALID Tenant ID, TRY AGAIN...')
             continue
 
@@ -55,7 +55,7 @@ def FetchData_TenantID_FROM_OccupiedSpaceID():
         Records = cursor.fetchall()
 
         if Records != []:
-            print(f"\nTenant(s) Occupying Room/Shop (ID: {ID}) is(are):")
+            print(f"Tenant(s) Occupying Room/Shop (ID: {ID}) is(are):")
             for i, Record in enumerate(Records):
                 print(f'  {i+1}) {Record[1]}  ({Record[0]})')
         else:
@@ -78,12 +78,15 @@ def FetchData_ReceiptNumber_FROM_TenantID():
 
         print("\n\n----ENTER 'STOP' TO QUIT | 'CHANGE MONTH' TO CHANGE MONTH----")
         while True:
-            TenantID = input('\nEnter The Tenant ID: ').strip()
-            if TenantID.upper() == 'STOP':
+            TenantID = input('\nEnter The Tenant ID: ').strip().upper()
+            if TenantID == 'STOP':
+                print()
                 IsRunning = False
                 break
-            
-            if TenantID.isdigit():
+            elif TenantID == 'CHANGE MONTH':
+                print()
+                break
+            elif TenantID.isdigit():
                 TenantID = "{:04d}".format(int(TenantID))
             else:
                 print('INVALID Tenant ID, TRY AGAIN...')
@@ -131,7 +134,7 @@ def FetchData_UNPAID_Tenants():
         Record[0] = '{:,}'.format(int(Record[0]))
         SUMTable.add_row(Record)
 
-    print('\n', SUMTable)
+    print('\n', SUMTable, sep='')
 
 def FetchData_GetTenantDetails():
     print("\n\n----ENTER 'STOP' TO QUIT----")
@@ -158,6 +161,7 @@ def FetchDate_Vacancy():
     print('Vacant Room/Shop(s) is(are): ', end='')
     for ID in VacantSpace_List:
         print(ID, end=', ') if ID != VacantSpace_List[-1] else print(ID)
+    print()
 
 def FetchData_TotalCashReceived():
     Today = datetime.date.today()
@@ -176,30 +180,3 @@ def FetchData_TotalCashReceived():
     TotalCashReceived = int(cursor.fetchone()[0])
     TotalCashReceived = '{:,}'.format(TotalCashReceived)
     print(f'\nTotal Cash Received For The Month Of {Month}:', TotalCashReceived, '\n')
-
-def FetchData_UnitsConsumed():
-    Today = datetime.date.today()
-    while True:
-        Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
-        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
-        if Month in MonthNames.keys():
-            Month = MonthNames[Month]
-            break
-        elif Month in MonthNames.values():
-            break
-        else:            
-            print('INVALID Month Name, TRY AGAIN...')
-
-    cursor.execute(f"SELECT [Room/Shop ID], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading] FROM [Monthly Report Data] \
-                   WHERE [For The Month Of] = '{Month}' ORDER BY [Room/Shop ID];")
-    Records = cursor.fetchall()
-
-    Table = PrettyTable()
-    Table.field_names = ['Room/Shop ID', 'Units Consumed']
-    Table.align['Units Consumed'] = 'l'
-    for Record in Records:
-        UnitsConsumed = round(Record[1] - Record[2], 1) if Record[1] != None and Record[2] != None else '----'
-        Table.add_row([Record[0], UnitsConsumed])
-
-    print()
-    print(Table)

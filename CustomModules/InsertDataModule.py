@@ -7,7 +7,7 @@ from CustomModules.EstablishConnection import *
 def InsertData_WaterPurchaseDetails():
     Today = datetime.date.today()
     Month = calendar.month_name[Today.month].upper()
-    
+
     while True:
         Date = input('\nEnter The Desired Date (DD/MM/YYYY): ').upper()
         Date = Today.strftime(r'%d/%m/%Y').upper() if Date == '' else Date
@@ -16,7 +16,7 @@ def InsertData_WaterPurchaseDetails():
             Date = datetime.datetime.strptime(Date, r'%d/%m/%Y')
             Date = datetime.date.strftime(Date, r'%Y-%m-%d')
             break
-        except:            
+        except Exception:
             print('INVALID Date, TRY AGAIN...')
             continue
 
@@ -29,39 +29,78 @@ def InsertData_WaterPurchaseDetails():
             print('INVALID Date, TRY AGAIN...')
 
     print()
-    cursor.execute(f"INSERT INTO [Water Purchase Details] VALUES (?, ?, ?);", (Date, TotalExpense, Month))
+    cursor.execute("INSERT INTO [Water Purchase Details] VALUES (?, ?, ?);", (Date, TotalExpense, Month))
     cursor.commit()
 
 def InsertData_UnusualDepartureDetails():
     Today = datetime.date.today()
     Month = calendar.month_name[Today.month].upper()
     PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
-    
+    VacatingTenant_List = []
+
     # DATE
     while True:
-        Date = input('\nEnter The Desired Closing Date (DD/MM/YYYY): ').upper()
-        Date = Today.strftime(r'%d/%m/%Y').upper() if Date == '' else Date
+        Date = input('\nEnter The Desired Closing Date (DD/MM/YYYY): ').strip()
+        Date = Today.strftime(r'%d/%m/%Y') if Date == '' else Date
 
         try:
             DateOBJ = datetime.datetime.strptime(Date, r'%d/%m/%Y')
             Date = datetime.date.strftime(DateOBJ, r'%Y-%m-%d')
             break
-        except:            
+        except Exception:            
             print('INVALID Date, TRY AGAIN...')
             continue
 
-    # ROOM/SHOP ID
-    while True:
-        ID = input('\nEnter Room/Shop ID: ').strip().upper()
-        if ID in list(Shop_IDs + Room_IDs):
-            break
-        else:
-            print('INVALID Room/Shop ID, TRY AGAIN...')
+    # ROOM/SHOP ID & TENANT VACATING
+    IsRunning = True
+    while IsRunning:
+        while True:
+            ID = input('\nEnter Room/Shop ID: ').strip().upper()
+            if ID in list(Shop_IDs + Room_IDs):
+                break
+            else:
+                print('INVALID Room/Shop ID, TRY AGAIN...')
+
+        cursor.execute(f"SELECT [Tenant ID], [Tenant Name] FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}'")
+        Records = cursor.fetchall()
+        TenantIDs = [Record[0] for Record in Records]
+
+        Table = PrettyTable()
+        Table.field_names = ['Tenant ID', 'Tenant Name']
+        Table.align['Tenant Name'] = 'l'
+        Table.add_rows(Records)
+        print('\n', Table, sep='')
+
+        print()
+        while True:
+            print("\n----ENTER '' IF EVERYONE IS VACATING----")
+            RawData = input('Enter The Vacating Tenant ID(s) (eg. 0033, 0044): ').strip()
+            if RawData == '':
+                VacatingTenant_List = TenantIDs
+                IsRunning = False
+                break
+            else:
+                x = RawData.split(',')
+                for TenantID in x:
+                    TenantID = TenantID.strip()
+                    if TenantID.isdigit():
+                        TenantID = "{:04d}".format(int(TenantID))
+                        if TenantID in TenantIDs:
+                            VacatingTenant_List.append(TenantID)
+                        else:
+                            print('INVALID TenantID, TRY AGAIN...')
+                            break
+                    else:
+                        print('INVALID TenantID, TRY AGAIN...')
+                        break
+                else:
+                    IsRunning = False
+                    break
 
     # NUMBER OF DAYS OCCUPIED
     while True:
         DaysOccupied = input('\nEnter Number Of Days Occupied: ').strip()
-        if DaysOccupied in ['10', '15', '30']:
+        if DaysOccupied in [str(_) for _ in range(31)]:
             DaysOccupied = int(DaysOccupied)
             break
         elif DaysOccupied == '':
@@ -97,14 +136,16 @@ def InsertData_UnusualDepartureDetails():
     Table = PrettyTable()
     Table.field_names = ['Room/Shop ID', 'Number Of Days Occupied', 'Closing Sub-Meter Reading', 'Opening Sub-Meter Reading', 'Closing Date', 'For The Month Of']
     Table.add_row([ID, DaysOccupied, ClosingReading, OpeningReading, datetime.date.strftime(DateOBJ, r'%d-%m-%Y'), Month])
-    print('\n\n', Table, sep='')
+    print('\n', Table, sep='')
+    print()
 
+    # VERIFICATION
     while True:
         UserPreference = input('\nDo You Want To Edit This Record? (Y/N): ').strip().upper()
         if UserPreference == 'Y':
-            Data = InsertData_UnusualDepartureDetails()
-            return Data
-        elif UserPreference == 'N' or UserPreference == '':
+            print()
+            return InsertData_UnusualDepartureDetails()
+        elif UserPreference in ['N', '']:
             break
         else:
             print('INVALID Choice, TRY AGAIN...')
@@ -113,19 +154,20 @@ def InsertData_UnusualDepartureDetails():
     cursor.execute(f"SELECT * FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}';")
     Record = cursor.fetchone()
     ID = Record[0]
-    TenantCount = Record[1]
+    cursor.execute(f"SELECT COUNT(*) FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL;")
+    TenantCount = cursor.fetchone()[0]
 
     Room_Rent = Record[TenantCount+1] if TenantCount != 0 else 0
     Other_Charges = Record[TenantCount+4] if TenantCount != 0 else 0
     Current_Charge = Record[8]
 
-    TotalRent = math.ceil((Room_Rent + Other_Charges) * DaysOccupied / 30) + math.ceil((ClosingReading - OpeningReading)*float(Current_Charge)) 
+    TotalRent = math.ceil((Room_Rent + Other_Charges) * DaysOccupied / 30) + math.ceil((ClosingReading - OpeningReading)*float(Current_Charge)) if TenantCount != 0 else 0
 
-    cursor.execute(f"INSERT INTO [Unusual Departure Details] VALUES (?, ?, ?, ?, ?, ?, ?);", (ID, DaysOccupied, ClosingReading, OpeningReading, Date, Month, TotalRent))
+    cursor.execute("INSERT INTO [Unusual Departure Details] VALUES (?, ?, ?, ?, ?, ?, ?);", (ID, DaysOccupied, ClosingReading, OpeningReading, Date, Month, TotalRent))
     cursor.commit()
-    return ID, Date
+    return ID, Date, VacatingTenant_List
 
-def InsertData_PaymentDetailsNS(ID = None):
+def InsertData_PaymentDetailsNS(ID = None, VacatingTenant_List = None, Date = None):
     Today = datetime.date.today()
     Month = calendar.month_name[Today.month].upper()
     PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
@@ -134,9 +176,11 @@ def InsertData_PaymentDetailsNS(ID = None):
     cursor.execute("SELECT MAX([Receipt Number]) FROM [Payment Details]")
     RawReceiptNumber_S = cursor.fetchone()
     ReceiptNumber_S = int(RawReceiptNumber_S[0]) if RawReceiptNumber_S[0] != None else 0
+
     cursor.execute("SELECT MAX([Receipt Number]) FROM [Payment Details (NS)]")
     RawReceiptNumber_NS = cursor.fetchone()
     ReceiptNumber_NS = int(RawReceiptNumber_NS[0]) if RawReceiptNumber_NS[0] != None else 0
+
     ReceiptNumber = max(ReceiptNumber_S, ReceiptNumber_NS) + 1
 
     if ID == None:
@@ -147,6 +191,35 @@ def InsertData_PaymentDetailsNS(ID = None):
                 break
             else:
                 print('INVALID Room/Shop ID, TRY AGAIN...')
+
+    if VacatingTenant_List == None:
+        cursor.execute(f"SELECT [Tenant ID] FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}'")
+        Records = cursor.fetchall()
+        TenantIDs = [Record[0] for Record in Records]
+
+        while True:
+            print("\n\n----ENTER '' IF EVERYONE IS VACATING----")
+            RawData = input('Enter The Vacating Tenant ID(s) (eg. 0033, 0044): ').strip()
+            if RawData == '':
+                VacatingTenant_List = TenantIDs
+                IsRunning = False
+                break
+            else:
+                x = RawData.split(',')
+                for TenantID in x:
+                    TenantID = TenantID.strip()
+                    if TenantID.isdigit():
+                        TenantID = "{:04d}".format(int(TenantID))
+                        if TenantID in TenantIDs:
+                            VacatingTenant_List.append(TenantID)
+                        else:
+                            print('INVALID TenantID, TRY AGAIN...')
+                            break
+                    else:
+                        print('INVALID TenantID, TRY AGAIN...')
+                        break
+                else:
+                    break
 
     print()
     cursor.execute(f"SELECT [Tenant ID], [Tenant Name] FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL;")
@@ -180,10 +253,27 @@ def InsertData_PaymentDetailsNS(ID = None):
             RawData = cursor.fetchone()
             BalanceDue = int(RawData[0]) if RawData != None else 0
 
-            IndividualRent = math.ceil(TotalRent / TenantCount) + BalanceDue
+            # TOTAL TENANT COUNT
+            TotalTenantCount = 0
+            cursor.execute(f"SELECT * FROM [Occupancy Information] WHERE [To (Date)] IS NULL;")
+            Records = cursor.fetchall()
+            for Record in Records:
+                TotalTenantCount += 1 if Record[0] in Room_IDs else 0
 
-            cursor.execute(f"INSERT INTO [Payment Details (NS)] VALUES ({ReceiptNumber}, '{TenantID}', '{TenantName}', '{ID}', {IndividualRent}, 'UNPAID', NULL, '{Month}', '{Year}');")
-            cursor.commit()
+            cursor.execute(f"SELECT SUM([Amount]) FROM [Water Purchase Details] WHERE [For The Month Of] = '{Month}'")
+            Data = cursor.fetchone()
+            TotalWaterCharge = math.ceil(Data[0]) if Data[0] != None else 0
+
+            if TenantID in VacatingTenant_List:
+                IndividualRent = math.ceil(TotalRent / TenantCount) + BalanceDue + math.ceil(TotalWaterCharge / TotalTenantCount)
+                Date = Today if Date == None else Date
+                cursor.execute(f"INSERT INTO [Payment Details (NS)] VALUES ({ReceiptNumber}, '{TenantID}', '{TenantName}', '{ID}', {IndividualRent}, 'PAID', ?, '{Month}', '{Year}');", (Date,))
+                cursor.commit()
+            else:
+                IndividualRent = math.ceil(TotalRent / TenantCount) + BalanceDue
+                cursor.execute(f"INSERT INTO [Payment Details (NS)] VALUES ({ReceiptNumber}, '{TenantID}', '{TenantName}', '{ID}', {IndividualRent}, 'UNPAID', NULL, '{Month}', '{Year}');")
+                cursor.commit()
+
             ReceiptNumber += 1
     return Month, ReceiptNumber_List
 

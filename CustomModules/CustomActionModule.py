@@ -25,12 +25,15 @@ def CustomAction_MonthBeginningAction():
     DuplicateRecords_PaymentDetails()
 
 def CustomAction_UnusualDepartureAction():
-    ID, Date = InsertData_UnusualDepartureDetails()
+    ID, Date, VacatingTenant_List = InsertData_UnusualDepartureDetails()
 
-    Month, ReceiptNumber_List = InsertData_PaymentDetailsNS(ID)
+    Month, ReceiptNumber_List = InsertData_PaymentDetailsNS(ID, VacatingTenant_List)
 
-    cursor.execute(f"UPDATE [Occupancy Information] SET [To (Date)] = ? WHERE [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL;", (Date,))
-    cursor.commit()
+    for TenantID in VacatingTenant_List:
+        cursor.execute(f"UPDATE [Occupancy Information] SET [To (Date)] = ? WHERE [Tenant ID] = '{TenantID}' AND [To (Date)] IS NULL;", (Date,))
+        cursor.commit()
+
+    Update_CurrentStatus_Field()
 
     if ID in Room_IDs:
         GenerateRoomRentReceipt_SPECIFIC(Month, ReceiptNumber_List)

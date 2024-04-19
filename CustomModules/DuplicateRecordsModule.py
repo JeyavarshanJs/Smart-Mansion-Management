@@ -16,7 +16,7 @@ def DuplicateRecords_MonthlyReportData():
             Date = datetime.datetime.strptime(Date, r'%d/%m/%Y')
             Date = datetime.date.strftime(Date, r'%Y-%m-%d')
             break
-        except:            
+        except Exception:            
             print('INVALID Date, TRY AGAIN...')
             continue
 
@@ -44,7 +44,7 @@ def DuplicateRecords_MonthlyReportData():
                        VALUES (?, ?, ?, ?);", (ID, OpeningReading, Date, Month))
         cursor.commit() 
 
-    print(f"Records Duplicated in the Table ({SUB_MENU_DUPLICATE_RECORDS[1]}) SUCCESSFULLY...")        
+    print("Records Duplicated in the Table (Monthly Report Data) SUCCESSFULLY...")        
 
 def DuplicateRecords_DUEDetails():
     Today = datetime.date.today()
@@ -62,7 +62,7 @@ def DuplicateRecords_DUEDetails():
         cursor.execute(f"INSERT INTO [DUE Details] VALUES ('{TenantID}', '{FullName}', '{ID}', 0, '{Month}', '{Year}');")
         cursor.commit()     
 
-    print(f"Records Duplicated in the Table ({SUB_MENU_DUPLICATE_RECORDS[2]}) SUCCESSFULLY...")        
+    print("Records Duplicated in the Table (DUE Details) SUCCESSFULLY...")        
 
 def DuplicateRecords_PaymentDetails():
     Today = datetime.date.today()
@@ -85,4 +85,4 @@ def DuplicateRecords_PaymentDetails():
                 cursor.commit()     
                 ReceiptNumber += 1
 
-    print(f"Records Duplicated in the Table ({SUB_MENU_DUPLICATE_RECORDS[3]}) SUCCESSFULLY...")        
+    print("Records Duplicated in the Table (Payment Details) SUCCESSFULLY...")        
