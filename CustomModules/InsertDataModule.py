@@ -1,24 +1,18 @@
 import math, datetime, calendar
+import threading
+import pyautogui as gui
 from prettytable import PrettyTable
 
 from CustomModules.VariablesModule import *
 from CustomModules.EstablishConnection import *
 
+Today = datetime.date.today()
+
+
 def InsertData_WaterPurchaseDetails():
-    Today = datetime.date.today()
-    Month = calendar.month_name[Today.month].upper()
+    _, _, Month, _ = GetMonth()
 
-    while True:
-        Date = input('\nEnter The Desired Date (DD/MM/YYYY): ').upper()
-        Date = Today.strftime(r'%d/%m/%Y').upper() if Date == '' else Date
-
-        try:
-            Date = datetime.datetime.strptime(Date, r'%d/%m/%Y')
-            Date = datetime.date.strftime(Date, r'%Y-%m-%d')
-            break
-        except Exception:
-            print('INVALID Date, TRY AGAIN...')
-            continue
+    Date, _ = GetDate()
 
     while True:
         TotalExpense = input('\nTotal Water Purchase Expense: ')
@@ -33,93 +27,33 @@ def InsertData_WaterPurchaseDetails():
     cursor.commit()
 
 def InsertData_UnusualDepartureDetails():
-    Today = datetime.date.today()
-    Month = calendar.month_name[Today.month].upper()
-    PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
-    VacatingTenant_List = []
+    _, PreviousMonth, Month, _ = GetMonth()
 
-    # DATE
-    while True:
-        Date = input('\nEnter The Desired Closing Date (DD/MM/YYYY): ').strip()
-        Date = Today.strftime(r'%d/%m/%Y') if Date == '' else Date
-
-        try:
-            DateOBJ = datetime.datetime.strptime(Date, r'%d/%m/%Y')
-            Date = datetime.date.strftime(DateOBJ, r'%Y-%m-%d')
-            break
-        except Exception:            
-            print('INVALID Date, TRY AGAIN...')
-            continue
+    Date, DateOBJ = GetDate()
 
     # ROOM/SHOP ID & TENANT VACATING
     IsRunning = True
     while IsRunning:
-        while True:
-            ID = input('\nEnter Room/Shop ID: ').strip().upper()
-            if ID in list(Shop_IDs + Room_IDs):
-                break
-            else:
-                print('INVALID Room/Shop ID, TRY AGAIN...')
+        ID = GetDetails('Room/Shop ID', PossibleValues=list(Shop_IDs + Room_IDs))
 
-        cursor.execute(f"SELECT [Tenant ID], [Tenant Name] FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}'")
+        cursor.execute(f"SELECT [Tenant ID], [Tenant Name], [Room/Shop ID] FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL")
         Records = cursor.fetchall()
-        TenantIDs = [Record[0] for Record in Records]
 
         Table = PrettyTable()
-        Table.field_names = ['Tenant ID', 'Tenant Name']
+        Table.field_names = ['Tenant ID', 'Tenant Name', 'Room/Shop ID']
         Table.align['Tenant Name'] = 'l'
         Table.add_rows(Records)
-        print('\n', Table, sep='')
+        print('\n', Table, sep='', end='\n\n')
 
-        print()
-        while True:
-            print("\n----ENTER '' IF EVERYONE IS VACATING----")
-            RawData = input('Enter The Vacating Tenant ID(s) (eg. 0033, 0044): ').strip()
-            if RawData == '':
-                VacatingTenant_List = TenantIDs
-                IsRunning = False
-                break
-            else:
-                x = RawData.split(',')
-                for TenantID in x:
-                    TenantID = TenantID.strip()
-                    if TenantID.isdigit():
-                        TenantID = "{:04d}".format(int(TenantID))
-                        if TenantID in TenantIDs:
-                            VacatingTenant_List.append(TenantID)
-                        else:
-                            print('INVALID TenantID, TRY AGAIN...')
-                            break
-                    else:
-                        print('INVALID TenantID, TRY AGAIN...')
-                        break
-                else:
-                    IsRunning = False
-                    break
+        if GetUser_Confirmation('>> Is This The Correct MATCH?'):
+            break
 
-    # NUMBER OF DAYS OCCUPIED
-    while True:
-        DaysOccupied = input('\nEnter Number Of Days Occupied: ').strip()
-        if DaysOccupied in [str(_) for _ in range(31)]:
-            DaysOccupied = int(DaysOccupied)
-            break
-        elif DaysOccupied == '':
-            DaysOccupied = 15
-            break
-        else:
-            print("INVALID Entry, TRY AGAIN...")
+    DaysOccupied = GetDetails('Number Of Days Occupied', int, '', PossibleValues=list(range(31)))
 
-    # CLOSING READING
-    while True:
-        ClosingReading = input(f"\nEnter 'Closing Sub-Meter Reading' For The Room/Shop (ID: {ID}): ").strip()
-        try:
-            ClosingReading = round(float(ClosingReading), 1)
-            break
-        except ValueError:
-            print("INVALID 'Closing Sub-Meter Reading', TRY AGAIN...")
+    ClosingReading = round(GetDetails(f"'Closing Sub-Meter Reading' For The Room/Shop (ID: {ID})", float), 1)
 
     # OPENING READING
-    cursor.execute(f"SELECT [Closing Sub-Meter Reading], [Closing Date] FROM [Unusual Departure Details] WHERE [For The Month Of] = '{Month}' AND [Room/Shop ID] = '{ID}';")
+    cursor.execute(f"SELECT [Closing Sub-Meter Reading], [Closing Date] FROM [Unusual Occupancy Details] WHERE [For The Month Of] = '{Month}' AND [Room/Shop ID] = '{ID}';")
     RawRecords = cursor.fetchall()
     if len(RawRecords) == 0:
         cursor.execute(f"SELECT [Closing Sub-Meter Reading] FROM [Monthly Report Data] WHERE [For The Month Of] = '{PreviousMonth}' AND [Room/Shop ID] = '{ID}';")
@@ -140,15 +74,9 @@ def InsertData_UnusualDepartureDetails():
     print()
 
     # VERIFICATION
-    while True:
-        UserPreference = input('\nDo You Want To Edit This Record? (Y/N): ').strip().upper()
-        if UserPreference == 'Y':
-            print()
-            return InsertData_UnusualDepartureDetails()
-        elif UserPreference in ['N', '']:
-            break
-        else:
-            print('INVALID Choice, TRY AGAIN...')
+    if GetUser_Confirmation('Do You Want To Edit This Record?', ['Y'], ['N', '']):
+        print()
+        return InsertData_UnusualDepartureDetails()
 
     print()
     cursor.execute(f"SELECT * FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}';")
@@ -163,15 +91,12 @@ def InsertData_UnusualDepartureDetails():
 
     TotalRent = math.ceil((Room_Rent + Other_Charges) * DaysOccupied / 30) + math.ceil((ClosingReading - OpeningReading)*float(Current_Charge)) if TenantCount != 0 else 0
 
-    cursor.execute("INSERT INTO [Unusual Departure Details] VALUES (?, ?, ?, ?, ?, ?, ?);", (ID, DaysOccupied, ClosingReading, OpeningReading, Date, Month, TotalRent))
+    cursor.execute("INSERT INTO [Unusual Occupancy Details] VALUES (?, ?, ?, ?, ?, ?, ?);", (ID, DaysOccupied, ClosingReading, OpeningReading, Date, Month, TotalRent))
     cursor.commit()
-    return ID, Date, VacatingTenant_List
+    return ID, Date
 
-def InsertData_PaymentDetailsNS(ID = None, VacatingTenant_List = None, Date = None):
-    Today = datetime.date.today()
-    Month = calendar.month_name[Today.month].upper()
-    PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
-    Year = Today.strftime(r'%Y')
+def InsertData_PaymentDetailsNS(ID = None, Date = None, IsDeparture = True):
+    _, PreviousMonth, Month, Year = GetMonth()
 
     cursor.execute("SELECT MAX([Receipt Number]) FROM [Payment Details]")
     RawReceiptNumber_S = cursor.fetchone()
@@ -183,8 +108,8 @@ def InsertData_PaymentDetailsNS(ID = None, VacatingTenant_List = None, Date = No
 
     ReceiptNumber = max(ReceiptNumber_S, ReceiptNumber_NS) + 1
 
+    # ROOM/SHOP ID
     if ID == None:
-        # ROOM/SHOP ID
         while True:
             ID = input('\nEnter Room/Shop ID: ').strip().upper()
             if ID in list(Shop_IDs + Room_IDs):
@@ -192,17 +117,18 @@ def InsertData_PaymentDetailsNS(ID = None, VacatingTenant_List = None, Date = No
             else:
                 print('INVALID Room/Shop ID, TRY AGAIN...')
 
-    if VacatingTenant_List == None:
+    VacatingTenant_List = []
+    if IsDeparture:
         cursor.execute(f"SELECT [Tenant ID] FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}'")
         Records = cursor.fetchall()
         TenantIDs = [Record[0] for Record in Records]
-
         while True:
-            print("\n\n----ENTER '' IF EVERYONE IS VACATING----")
+            print("\n\n----ENTER '' IF EVERYONE | 'NONE' IF NO ONE IS VACATING----")
             RawData = input('Enter The Vacating Tenant ID(s) (eg. 0033, 0044): ').strip()
             if RawData == '':
                 VacatingTenant_List = TenantIDs
-                IsRunning = False
+                break
+            elif RawData == 'NONE':
                 break
             else:
                 x = RawData.split(',')
@@ -229,11 +155,11 @@ def InsertData_PaymentDetailsNS(ID = None, VacatingTenant_List = None, Date = No
     if OIRecords != []:
         TenantCount = len(OIRecords)
 
-        cursor.execute(f"SELECT [Total Rent], [Closing Date] FROM [Unusual Departure Details] WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}'")
+        cursor.execute(f"SELECT [Total Rent], [Closing Date] FROM [Unusual Occupancy Details] WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}'")
         RawRecords = cursor.fetchall()
         if len(RawRecords) == 0:
             print('\n', '-' * 75, sep='')
-            print("No Record FOUND, TRY UPDATING 'Unusual Departure Details' Field...")
+            print("No Record FOUND, TRY UPDATING 'Unusual Occupancy Details' Field...")
             print('-' * 75, '\n', sep='')
             return
         else:
@@ -270,10 +196,144 @@ def InsertData_PaymentDetailsNS(ID = None, VacatingTenant_List = None, Date = No
                 cursor.execute(f"INSERT INTO [Payment Details (NS)] VALUES ({ReceiptNumber}, '{TenantID}', '{TenantName}', '{ID}', {IndividualRent}, 'PAID', ?, '{Month}', '{Year}');", (Date,))
                 cursor.commit()
             else:
-                IndividualRent = math.ceil(TotalRent / TenantCount) + BalanceDue
+                IndividualRent = math.ceil(TotalRent / TenantCount)
                 cursor.execute(f"INSERT INTO [Payment Details (NS)] VALUES ({ReceiptNumber}, '{TenantID}', '{TenantName}', '{ID}', {IndividualRent}, 'UNPAID', NULL, '{Month}', '{Year}');")
                 cursor.commit()
 
             ReceiptNumber += 1
-    return Month, ReceiptNumber_List
+    return Month, ReceiptNumber_List, VacatingTenant_List
 
+def InsertData_TenantsInformation():
+    RegistrationDate, _ = GetDate()
+
+    cursor.execute("SELECT MAX(ID) FROM [Tenant's Information]")
+    ID = "{:04d}".format(int(cursor.fetchone()[0])+1)
+
+    Fields = ['ID', 'Full Name', "Father's Name", 'Occupation', 'Permanent Address', 'PIN Code', 'Phone Number', 'Additional Phone Number', 'Office Address',
+              ('Advance Amount', int), ('Receipt Number', int)]
+    DataMappings = {'ID': ID}
+    print('\n\n<<<<<<<<<<+>>>>>>>>>>')
+    for Field in Fields[1:]:
+        if isinstance(Field, str):
+            DataMappings[Field] = GetDetails(Field)
+        elif isinstance(Field, tuple):
+            DataMappings[Field[0]] = GetDetails(Field[0], Field[1])
+    print('\n<<<<<<<<<<+>>>>>>>>>>\n')
+
+    print('\n<<<<<<<<<<+>>>>>>>>>>', end='')
+    StartingIndex = 1
+    while True:
+        for Index, (Key, Value) in enumerate(list(DataMappings.items())[StartingIndex:]):
+            Table = PrettyTable()
+            Table.field_names = [Key]
+            Table.add_row([Value])
+            print('\n\n', Table, sep='')
+            if GetUser_Confirmation('Do You Want To Edit This Data?', ['Y'], ['N', '']):
+                DataMappings[Key] = GetDetails(Key, type(Value), Value)
+                StartingIndex += Index
+                break
+        else:
+            break
+    print('\n<<<<<<<<<<+>>>>>>>>>>\n')
+
+    cursor.execute("INSERT INTO [Tenant's Information] (ID, [Full Name], [Father's Name], Occupation, [Permanent Address], [PIN Code], [Phone Number], [Additional Phone Number], [Office Address], [Advance Amount], [Receipt Number], [Current Status], [Registration Date]) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);", \
+        (DataMappings['ID'], DataMappings['Full Name'], DataMappings["Father's Name"], DataMappings['Occupation'], DataMappings['Permanent Address'],
+         DataMappings['PIN Code'], DataMappings['Phone Number'], DataMappings['Additional Phone Number'], DataMappings['Office Address'], DataMappings['Advance Amount'],
+         DataMappings['Receipt Number'], 'OCCUPIED', RegistrationDate))
+    cursor.commit()
+    return ID
+
+def InsertData_OccupancyInformation(TenantID = None):
+    print('\n\n<<<<<<<<<<+>>>>>>>>>>')
+    Date, DateOBJ = GetDate()
+
+    ID = GetDetails('Room/Shop ID', PossibleValues= list(Shop_IDs + Room_IDs))
+    while True:
+        TenantID = "{:04d}".format(int(GetDetails('Tenant ID'))) if TenantID is None else TenantID
+        cursor.execute(f"SELECT [Full Name] FROM [Tenant's Information] WHERE ID = '{TenantID}';")
+        RawData = cursor.fetchone()
+        if RawData is not None:
+            TenantName = str(RawData[0])
+            break
+        else:
+            TenantID = None
+            print('INVALID Tenant ID, TRY AGAIN...')
+    ShopName = GetDetails('Shop Name', CanBeNONE=True) if ID in Room_IDs else None
+    print('\n<<<<<<<<<<+>>>>>>>>>>\n')
+
+    Table = PrettyTable()
+    Table.field_names = ['Room/Shop ID', 'Tenant ID', 'Tenant Name', 'Shop Name', 'From (Date)']
+    Table.add_row([ID, TenantID, TenantName, ShopName, DateOBJ.strftime(r'%d-%m-%Y')])
+    print('\n', Table, sep='')
+
+    # VERIFICATION
+    if GetUser_Confirmation('Do You Want To Edit This Record?', ['Y'], ['N', '']):
+        print()
+        return InsertData_OccupancyInformation()
+
+    cursor.execute(f"INSERT INTO [Occupancy Information] VALUES (?,?,?,?,?,?);", (ID, TenantID, TenantName, ShopName, Date, None))
+    cursor.commit()
+    print()
+
+
+
+RawData = None
+def GetDetails(WhatToGet: str, DataType = str, DefaultValue = '', CanBeNONE = False, PossibleValues = []):
+    def GetInput():
+        global RawData
+        RawData = input(f'\nEnter The {WhatToGet}: ')
+    def InsertValue():
+        gui.typewrite(DefaultValue)
+
+    while True:
+        GetInput_Thread = threading.Thread(target=GetInput)
+        InsertValue_Thread = threading.Thread(target=InsertValue)
+        GetInput_Thread.start()
+        InsertValue_Thread.start()
+        GetInput_Thread.join()
+        if RawData != '':
+            try:
+                ConvertedData = DataType(RawData)
+                if PossibleValues != [] and ConvertedData in PossibleValues: 
+                    return ConvertedData
+                elif PossibleValues == []:
+                    return ConvertedData
+                else:
+                    print(f'INVALID {WhatToGet}, TRY AGAIN...')
+            except ValueError:
+                print(f'INVALID {WhatToGet}, TRY AGAIN...')
+        else:
+            if CanBeNONE:
+                return None
+            else:
+                return 'NONE' if DataType == str else None
+
+def GetMonth():
+    Month = calendar.month_name[Today.month].upper()
+    PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
+    Year = Today.strftime(r'%Y')
+    Date = datetime.date.strftime(Today, r'%Y-%m-%d')
+
+    return Date, PreviousMonth, Month, Year
+
+def GetDate():
+    while True:
+        Date = input("\nEnter The Desired 'From (Date)' (DD/MM/YYYY): ").strip()
+        Date = Today.strftime(r'%d/%m/%Y') if Date == '' else Date
+
+        try:
+            DateOBJ = datetime.datetime.strptime(Date, r'%d/%m/%Y')
+            Date = datetime.date.strftime(DateOBJ, r'%Y-%m-%d')
+            return Date, DateOBJ
+        except Exception:            
+            print('INVALID Date, TRY AGAIN...')
+
+def GetUser_Confirmation(QString, YES = ['Y', ''], NO = ['N']):
+    while True:
+        ANS = input('\n' + QString + ' (Y/N): ').strip().upper()
+        if ANS in YES:
+            return True
+        elif ANS in NO:
+            return False
+        else:
+            print('>> INVALID Response, TRY AGAIN <<')

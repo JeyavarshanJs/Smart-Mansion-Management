@@ -26,7 +26,7 @@ def DuplicateRecords_MonthlyReportData():
     for Record in Records:
         ID = Record[0]
         
-        cursor.execute(f"SELECT [Closing Sub-Meter Reading], [Closing Date] FROM [Unusual Departure Details] WHERE [For The Month Of] = '{Month}' AND [Room/Shop ID] = '{ID}';")
+        cursor.execute(f"SELECT [Closing Sub-Meter Reading], [Closing Date] FROM [Unusual Occupancy Details] WHERE [For The Month Of] = '{Month}' AND [Room/Shop ID] = '{ID}';")
         RawRecords = cursor.fetchall()
         if len(RawRecords) == 0:
             OpeningReading = Record[1]

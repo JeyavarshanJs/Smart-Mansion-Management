@@ -16,11 +16,11 @@ MAIN_MENU = [['EXIT', lambda: 'QUIT'], ['UPDATE'], ['GENERATE RENT RECEIPT'], ['
 SUB_MENU_UPDATE = [['BACK', lambda: 'BACK'],
                    ['DUE Amount', lambda: Update_DUEAmount_Field()],
                    ['Total Rent', lambda: Update_TotalRent_Field()],
-                   ['Individual Rent', lambda: Update_IndividualRent_Field],
-                   ['Tenant Count', Update_TenantsCount_Field],
-                   ['Current Status', Update_CurrentStatus_Field],
-                   ['Closing Sub-Meter Reading', Update_ClosingReading_Field],
-                   ['Number Of Days Occupied', Update_NumberOfDaysOccupied_Field]]
+                   ['Individual Rent', lambda: Update_IndividualRent_Field()],
+                   ['Tenant Count', lambda: Update_TenantsCount_Field()],
+                   ['Current Status', lambda: Update_CurrentStatus_Field()],
+                   ['Closing Sub-Meter Reading', lambda: Update_ClosingReading_Field()],
+                   ['Number Of Days Occupied', lambda: Update_NumberOfDaysOccupied_Field()]]
 
 # SUB MENU (GENERATE RENT RECEIPT)
 SUB_MENU_GENERATE_RENT_RECEIPT = [['BACK', lambda: 'BACK'], ['ROOM'], ['SHOP']]
@@ -54,17 +54,20 @@ SUB_MENU_FETCH_DATA = [['BACK', lambda: 'BACK'],
                        ['Total Cash Received', lambda: FetchData_TotalCashReceived()]]
 
 # SUB MENU (INSERT DATA)
-SUB_MENU_INSERT_DATA = [['BACK', lambda: 'BACK'],
-                        ['Water Purchase Details', lambda: InsertData_WaterPurchaseDetails()],
-                        ['Unusual Departure Details', lambda: InsertData_UnusualDepartureDetails()],
-                        ['Payment Details (NS)', lambda: InsertData_PaymentDetailsNS()]]
+SUB_MENU_INSERT_DATA = [ ['BACK', lambda: 'BACK'],
+                         ['Water Purchase Details', lambda: InsertData_WaterPurchaseDetails()],
+                         ['Unusual Occupancy Details', lambda: InsertData_UnusualDepartureDetails()],
+                         ['Payment Details (NS)', lambda: InsertData_PaymentDetailsNS()],
+                         ["Tenant's Information", lambda: InsertData_TenantsInformation()],
+                         ['Occupancy Information', lambda: InsertData_OccupancyInformation()] ]
 
 # SUB MENU (CUSTOM ACTION)
 SUB_MENU_CUSTOM_ACTION = [['BACK', lambda: 'BACK'],
                           ['Month End Action', lambda: CustomAction_MonthEndAction()],
                           ['Month Beginning Action', lambda: CustomAction_MonthBeginningAction()],
+                          ['Unusual Arrival Action', lambda: CustomAction_UnusualArrivalAction()],
                           ['Unusual Departure Action', lambda: CustomAction_UnusualDepartureAction()],
-                          ['New Occupancy Action', lambda: None]]
+                          ['New Occupancy Action', lambda: CustomAction_NewOccupancyAction()]]
 
 
 # CREATE MENU MAPPINGS

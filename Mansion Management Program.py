@@ -39,14 +39,6 @@ def ExecuteAction(MENU_MAPPINGS, MENU_TITLE):
         input('\nPress ENTER Key To Continue...')
 
 
-print('\n')
-print(' ' * 60 , r'\\!//', sep='')
-print(' ' * 60 , '(o o)', sep='')
-print('-' * 56 , 'oOOo-(_)-oOOo', '-' * 56, sep='')
-print(' ' * 42 , 'GREETINGS From Jeyavarshan, The CREATOR')
-print(' ' * 3, 'For BUG REPORTS & ANY DOUBTS Contact Me VIA (WhatsApp: 8667224050, Phone: 8667224050, Email: jeyavarshan0000@gmail.com)',sep='')
-print('=' * 125)
-
 # Checking Basic Requirements
 Required_Files = [r'Static Templates\Room Rent Receipt-1.jpg', r'Static Templates\Room Rent Receipt-2.jpg',
                   r'Static Templates\Shop Rent Receipt-1.jpg', r'Static Templates\Shop Rent Receipt-2.jpg',
@@ -61,7 +53,15 @@ if not all(os.path.exists(File) for File in Required_Files):
     sys.exit()  
 
 while True:
-    print()
+    os.system('cls')
+    print('\n')
+    print(' ' * 60 , r'\\!//', sep='')
+    print(' ' * 60 , '(o o)', sep='')
+    print('-' * 56 , 'oOOo-(_)-oOOo', '-' * 56, sep='')
+    print(' ' * 42 , 'GREETINGS From Jeyavarshan, The CREATOR')
+    print(' ' * 3, 'For BUG REPORTS & ANY DOUBTS Contact Me VIA (WhatsApp: 8667224050, Phone: 8667224050, Email: jeyavarshan0000@gmail.com)',sep='')
+    print('=' * 125)
+    print('\n')
     ChosenDrive = ChosenPrinter = None
     Data = ExecuteAction(MENU_MAPPINGS, 'MAIN MENU')
     if Data == 'QUIT':

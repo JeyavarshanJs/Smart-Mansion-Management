@@ -1,4 +1,4 @@
-import math, datetime, calendar
+import datetime, calendar
 from prettytable import PrettyTable
 
 from CustomModules.VariablesModule import *
@@ -134,7 +134,7 @@ def FetchData_UNPAID_Tenants():
         Record[0] = '{:,}'.format(int(Record[0]))
         SUMTable.add_row(Record)
 
-    print('\n', SUMTable, sep='')
+    print('\n', SUMTable, sep='', end='\n\n')
 
 def FetchData_GetTenantDetails():
     print("\n\n----ENTER 'STOP' TO QUIT----")

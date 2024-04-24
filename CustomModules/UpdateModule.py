@@ -82,7 +82,7 @@ def Update_TotalRent_Field():
                     [For The Month Of] = '{Month}';", (Total_Rent, ID))
         con.commit()
 
-    PenultimateMonth, Month = Get_DateTime()
+    PenultimateMonth, Month, _, _ = Get_DateTime()
     
     # TOTAL TENANT COUNT
     if Month == PenultimateMonth:
@@ -94,8 +94,13 @@ def Update_TotalRent_Field():
     else:
         while True:
             TotalTenantCount = input(f'\nEnter Total Tenant Count For The Month Of {Month}: ')
-            TotalTenantCount = 1 if TotalTenantCount == '' else int(TotalTenantCount) if TotalTenantCount.isdigit() else None
-            if TotalTenantCount is None:
+            if TotalTenantCount == '':
+                TotalTenantCount = 1
+                break
+            elif TotalTenantCount.isdigit():
+                TotalTenantCount = int(TotalTenantCount)
+                break
+            else:
                 print('INVALID Total Tenant Count, TRY AGAIN...')
 
     cursor.execute(f"SELECT SUM([Amount]) FROM [Water Purchase Details] WHERE [For The Month Of] = '{Month}'")
@@ -136,7 +141,7 @@ def Update_TotalRent_Field():
 
             for ID in ID_List:
                 cursor.execute(f"SELECT * FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}';")
-                UpdateRecord(Record, True)
+                UpdateRecord(cursor.fetchone(), True)
 
     print("\n>>> 'Total Rent' UPDATED Successfully <<<\n")
 
@@ -211,7 +216,7 @@ def Update_IndividualRent_Field():
 
             for ReceiptNumber in ReceiptNumber_List:
                 cursor.execute(f"SELECT [Room/Shop ID] FROM [Payment Details] WHERE [For The Month Of] = '{Month}' AND [Receipt Number] = {ReceiptNumber};")
-                UpdateRecord(cursor.fetchone[0])
+                UpdateRecord(cursor.fetchone(), True)
 
     print("\n>>> 'Individual Rent' UPDATED Successfully <<<\n")
 
@@ -401,20 +406,19 @@ def Update_NumberOfDaysOccupied_Field():
 # OTHER FUNCTIONS
 def Get_DateTime(GetMonth = True):
     Today = datetime.date.today()
-    PenultimateMonth = calendar.month_name[Today.month-1].upper()
-    PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
     Year = Today.strftime('%Y')
     if GetMonth:
         while True:
             Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
             Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
-            if Month in MonthNames.keys():
-                Month = MonthNames[Month]
-                break
-            elif Month in MonthNames.values():
-                break
-            else:
+            Month = MonthNames[Month] if Month in MonthNames.keys() else Month
+            Month = Month if Month in MonthNames.values() else Month
+            if Month is None:
                 print('INVALID Month Name, TRY AGAIN...')
+                continue
+            break
+    PenultimateMonth = calendar.month_name[Today.month-1].upper()
+    PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
     return PenultimateMonth, Month, PreviousMonth, Year
 
 def GenerateList(WhatToGet):
