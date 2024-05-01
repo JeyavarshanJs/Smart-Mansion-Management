@@ -4,6 +4,9 @@ import datetime, calendar, time
 
 from CustomModules.EstablishConnection import *
 
+Today = datetime.date.today()
+
+
 def ReadData(Delimiter = ':'):
     Data = {}
     with open('Data.txt', 'r') as File:
@@ -36,44 +39,33 @@ def UpdateData(WhatToUpdate, Values: dict, Delimiter = ':'):
 
 
 def SendNotification_ALL():
-    def Open_WhatsApp(Delay):
-        gui.press('win')
-        time.sleep(2)
-        gui.typewrite('WhatsApp')
-        time.sleep(0.5)
-        gui.press('enter')
-        time.sleep(Delay)
-
-        cursor.execute(f"SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Individual Rent], [For The Month OF] FROM [Payment Details] \
-                        WHERE Status = 'UNPAID' AND [For The Month Of] = '{Month}' ORDER BY [Room/Shop ID];")
-        return cursor.fetchall()
-
-    Today = datetime.date.today()
     Month = calendar.month_name[Today.month-1].upper()
+    PreviousMonth = calendar.month_name[Today.month-2].upper()
 
     print('\n<<<<<<<<<<+>>>>>>>>>>', end='')
     if not GetUser_Confirmation("Do You Want To Record Cursor's Position?", ['Y'], ['N', '']):
         if GetUser_Confirmation('Is WhatsApp INSTALLED In Your Machine?'):
             try:
                 if GetUser_Confirmation('Is WhatsApp ALREADY Opened In Your Machine?'):
-                    RawData = Open_WhatsApp(0.5)
-                    for Data in RawData:
-                        cursor.execute(f"SELECT [Phone Number] FROM [Tenant's Information] WHERE [ID] = '{Data[0]}'")
-                        PhoneNumber = cursor.fetchone()[0]
-                        WhatsAppRemainder(PhoneNumber, Data)
+                    Open_WhatsApp(0.5)
                 else:
-                    RawData = Open_WhatsApp(10)
-                    for Data in RawData:
-                        cursor.execute(f"SELECT [Phone Number] FROM [Tenant's Information] WHERE [ID] = '{Data[0]}'")
-                        PhoneNumber = cursor.fetchone()[0]
-                        WhatsAppRemainder(PhoneNumber, Data)
+                    Open_WhatsApp(10)
+
+                RawData = GetData(Month)
+                for Data in RawData:
+                    SendWhatsAppMessage_1(Data)
+
+                cursor.execute(f"SELECT [Tenant ID] FROM [DUE Details] WHERE [For The Month Of] = '{PreviousMonth}' AND NOT [Due Amount] = 0;")
+                RawData = cursor.fetchall()
+                for Data in RawData:
+                    SendWhatsAppMessage_2(Data)
             except gui.FailSafeException:
                 print('\n', '-' * 50, sep='')
-                print('User STOPPED The Process...')
+                print('  User ENDED The Process...')
                 print('-' * 50, '\n', sep='')
         else:
             print('\n', '-' * 75, sep='')
-            print('INSTALL WhatsApp Desktop APP, Then TRY AGAIN...')
+            print('  INSTALL WhatsApp Desktop APP, Then TRY AGAIN...')
             print('-' * 75, '\n', sep='')
     else:
         gui.alert(title = 'ALERT', text = "After Confirming This Message, Move The Cursor To The Desired Location And WAIT.")
@@ -87,21 +79,14 @@ def SendNotification_ALL():
 
 
 # OTHER FUNCTIONS
-def GetUser_Confirmation(QString, YES = ['Y', ''], NO = ['N']):
-    while True:
-        ANS = input('\n' + QString + ' (Y/N): ').strip().upper()
-        if ANS in YES:
-            return True
-        elif ANS in NO:
-            return False
-        else:
-            print('>> INVALID Response, TRY AGAIN <<')
-
-def WhatsAppRemainder(PhoneNumber, Data):
+def SendWhatsAppMessage_1(Data):
     PermanentData = ReadData()
-    print(PermanentData)
+    cursor.execute(f"SELECT [Phone Number] FROM [Tenant's Information] WHERE [ID] = '{Data[0]}'")
+    RawPhoneNumber = cursor.fetchone()
+    PhoneNumber = str(RawPhoneNumber[0]) if RawPhoneNumber not in ['NONE', None] else ''
+    if len(PhoneNumber) != 10 or not PhoneNumber.isdigit():
+        return
 
-    Today = datetime.date.today()
     Month = calendar.month_name[Today.month].upper()
     Date = int(Today.strftime(r'%d'))
     PreviousMonth = calendar.month_name[Today.month-1].upper()
@@ -111,7 +96,7 @@ def WhatsAppRemainder(PhoneNumber, Data):
     gui.typewrite(PhoneNumber)
     time.sleep(2)
     gui.click(PermanentData['Cursor Position'][0], PermanentData['Cursor Position'][1], duration=0.25)
-    time.sleep(2)
+    time.sleep(1)
 
     if Date <= 5:
         MSG = '*வாழ்க வளமுடன்*\n\n' \
@@ -122,7 +107,7 @@ def WhatsAppRemainder(PhoneNumber, Data):
             '*Hope You Will Settle The Rent Payment Within '
         MSG += f'5th OF {Month}*⏳⏳' if Date < 5 else 'TODAY*⏳⏳'
     else:
-        MSG = '⚠️⚠️ *FOR YOUR INFORMATION! DUE Date Exceeded* ⚠️⚠️\n' \
+        MSG = '⚠️⚠️ *DUE Date Exceeded* ⚠️⚠️\n' \
             '*வாழ்க வளமுடன்*\n\n' \
             f'GREETINGS From Jeyavarshan😎 (Manager) To Mr./Mrs. {Data[1]}\n' \
             f'     This Is To INFORM You That *TOTAL RENT* For The Month Of {PreviousMonth} For Room/Shop (ID: {Data[2]}) Is *Rs: {int(Data[3])}/-*💰💰.\n\n' \
@@ -132,8 +117,61 @@ def WhatsAppRemainder(PhoneNumber, Data):
 
     pyperclip.copy(MSG)
     gui.hotkey('ctrl', 'v')
-    time.sleep(1)
+    time.sleep(2)
 
     gui.press('enter')
     time.sleep(1)
 
+def SendWhatsAppMessage_2(Data):
+    PermanentData = ReadData()
+    cursor.execute(f"SELECT [Phone Number] FROM [Tenant's Information] WHERE [ID] = '{Data[0]}'")
+    RawPhoneNumber = cursor.fetchone()
+    PhoneNumber = str(RawPhoneNumber[0]) if RawPhoneNumber not in ['NONE', None] else ''
+    if len(PhoneNumber) != 10 or not PhoneNumber.isdigit():
+        print(f"{Data[0]} Skipped")
+        return
+
+    gui.hotkey('ctrl', 'n')
+    time.sleep(1)
+    gui.typewrite(PhoneNumber)
+    time.sleep(2)
+    gui.click(PermanentData['Cursor Position'][0], PermanentData['Cursor Position'][1], duration=0.25)
+    time.sleep(1)
+
+    gui.typewrite('*Including ALL REMAINING DUES*')
+    time.sleep(1)
+    gui.press('enter')
+    time.sleep(1)
+
+def GetUser_Confirmation(QString, YES = ['Y', ''], NO = ['N']):
+    while True:
+        ANS = input('\n' + QString + ' (Y/N): ').strip().upper()
+        if ANS in YES:
+            return True
+        elif ANS in NO:
+            return False
+        else:
+            print('>> INVALID Response, TRY AGAIN <<')
+
+def Open_WhatsApp(Delay):
+    gui.press('win')
+    time.sleep(2)
+    gui.typewrite('WhatsApp')
+    time.sleep(0.5)
+    gui.press('enter')
+    time.sleep(Delay)
+
+def GetData(Month):
+    Query = f"""
+        SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], SUM([Individual Rent]), [For The Month OF] FROM
+        (
+            SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Individual Rent], [For The Month OF] FROM [Payment Details] WHERE [Status] = 'UNPAID' 
+            AND [For The Month OF] = '{Month}'
+            UNION
+            SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Individual Rent], [For The Month OF] FROM [Payment Details (NS)] WHERE [Status] = 'UNPAID' 
+            AND [For The Month OF] = '{Month}'
+        )
+        GROUP BY [Tenant ID], [Tenant Name], [Room/Shop ID], [For The Month OF];
+    """
+    cursor.execute(Query)
+    return cursor.fetchall()

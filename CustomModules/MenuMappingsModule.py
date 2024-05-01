@@ -14,9 +14,9 @@ MAIN_MENU = [['EXIT', lambda: 'QUIT'], ['UPDATE'], ['GENERATE RENT RECEIPT'], ['
 
 # SUB MENU (UPDATE)
 SUB_MENU_UPDATE = [['BACK', lambda: 'BACK'],
-                   ['DUE Amount', lambda: Update_DUEAmount_Field()],
                    ['Total Rent', lambda: Update_TotalRent_Field()],
                    ['Individual Rent', lambda: Update_IndividualRent_Field()],
+                   ['DUE Amount', lambda: Update_DUEAmount_Field()],
                    ['Tenant Count', lambda: Update_TenantsCount_Field()],
                    ['Current Status', lambda: Update_CurrentStatus_Field()],
                    ['Closing Sub-Meter Reading', lambda: Update_ClosingReading_Field()],
@@ -67,7 +67,8 @@ SUB_MENU_CUSTOM_ACTION = [['BACK', lambda: 'BACK'],
                           ['Month Beginning Action', lambda: CustomAction_MonthBeginningAction()],
                           ['Unusual Arrival Action', lambda: CustomAction_UnusualArrivalAction()],
                           ['Unusual Departure Action', lambda: CustomAction_UnusualDepartureAction()],
-                          ['New Occupancy Action', lambda: CustomAction_NewOccupancyAction()]]
+                          ['New Occupancy Action', lambda: CustomAction_NewOccupancyAction()],
+                          ['Change Occupancy Action', lambda: CustomAction_ChangeOccupancyAction()]]
 
 
 # CREATE MENU MAPPINGS

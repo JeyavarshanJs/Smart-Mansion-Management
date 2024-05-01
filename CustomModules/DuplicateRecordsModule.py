@@ -3,8 +3,10 @@ import datetime, calendar
 from CustomModules.VariablesModule import *
 from CustomModules.EstablishConnection import *
 
+Today = datetime.date.today()
+
+
 def DuplicateRecords_MonthlyReportData():
-    Today = datetime.date.today()
     Month = calendar.month_name[Today.month].upper()
     PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
 
@@ -44,15 +46,14 @@ def DuplicateRecords_MonthlyReportData():
                        VALUES (?, ?, ?, ?);", (ID, OpeningReading, Date, Month))
         cursor.commit() 
 
-    print("Records Duplicated in the Table (Monthly Report Data) SUCCESSFULLY...")        
+    print(">> Records Duplicated in the Table (Monthly Report Data) SUCCESSFULLY <<")        
 
 def DuplicateRecords_DUEDetails():
-    Today = datetime.date.today()
     Month = calendar.month_name[Today.month-1].upper()
     Year = Today.strftime(r'%Y')
-    
-    cursor.execute(f"SELECT TI.ID, TI.[Full Name], OI.[Room/Shop ID] FROM [Tenant's Information] as TI INNER JOIN [Occupancy Information] as OI \
-                   ON TI.ID = OI.[Tenant ID];")
+
+    cursor.execute(f"SELECT TI.ID, TI.[Full Name], OI.[Room/Shop ID] FROM [Tenant's Information] TI INNER JOIN [Occupancy Information] OI ON TI.ID = OI.[Tenant ID] \
+                   WHERE OI.[To (Date)] IS NULL;")
     Records = cursor.fetchall()
 
     for Record in Records:
@@ -62,18 +63,17 @@ def DuplicateRecords_DUEDetails():
         cursor.execute(f"INSERT INTO [DUE Details] VALUES ('{TenantID}', '{FullName}', '{ID}', 0, '{Month}', '{Year}');")
         cursor.commit()     
 
-    print("Records Duplicated in the Table (DUE Details) SUCCESSFULLY...")        
+    print(">> Records Duplicated in the Table (DUE Details) SUCCESSFULLY <<")
 
 def DuplicateRecords_PaymentDetails():
-    Today = datetime.date.today()
     Month = calendar.month_name[Today.month-1].upper()
     Year = Today.strftime(r'%Y')
 
     cursor.execute("SELECT MAX([Receipt Number]) FROM [Payment Details]")
-    ReceiptNumber_S = int(cursor.fetchone()[0])
+    ReceiptNumberS, = cursor.fetchone()
     cursor.execute("SELECT MAX([Receipt Number]) FROM [Payment Details (NS)]")
-    ReceiptNumber_NS = int(cursor.fetchone()[0])
-    ReceiptNumber = max(ReceiptNumber_S, ReceiptNumber_NS)
+    ReceiptNumberNS, = cursor.fetchone()
+    ReceiptNumber = max(ReceiptNumberS, ReceiptNumberNS) + 1 if ReceiptNumberS != None and ReceiptNumberNS != None else 1
 
     for ID in sorted(Shop_IDs + Room_IDs):
         cursor.execute(f"SELECT [Tenant ID], [Tenant Name] FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL \
@@ -85,4 +85,4 @@ def DuplicateRecords_PaymentDetails():
                 cursor.commit()     
                 ReceiptNumber += 1
 
-    print("Records Duplicated in the Table (Payment Details) SUCCESSFULLY...")        
+    print(">> Records Duplicated in the Table (Payment Details) SUCCESSFULLY <<")        

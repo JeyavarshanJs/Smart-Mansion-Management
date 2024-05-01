@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from CustomModules.VariablesModule import *
 from CustomModules.EstablishConnection import *
+from CustomModules.FetchDataModule import *
 
 Today = datetime.date.today()
 Date = Today.strftime(r'%d/%m/%Y')
@@ -54,9 +55,15 @@ def GenerateRoomRentReceipt_SPECIFIC(Month = None, ReceiptNumber_List = None):
         while True:
             IsRunning, ReceiptNumber_List = GenerateList('Receipt NOs (eg. 11-22, 33)')
             if not IsRunning:
-                cursor.execute(f"SELECT [Receipt Number] FROM [Payment Details] WHERE [For The Month OF] = '{Month}' \
-                                 UNION \
-                                 SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [For The Month OF] = '{Month}';")
+                if ReceiptNumber_List[0] == 'FIND RECEIPT NUMBER':
+                    GetReceiptNumber(Month)
+                    return GenerateRoomRentReceipt_SPECIFIC(Month)
+
+                cursor.execute(f"""
+                                 SELECT [Receipt Number] FROM [Payment Details] WHERE [For The Month OF] = '{Month}'
+                                 UNION
+                                 SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [For The Month OF] = '{Month}';
+                """)
                 RawData = cursor.fetchall()
                 ValidReceiptNumbers = [str(ReceiptNumber[0]) for ReceiptNumber in RawData]
                 if all(ReceiptNumber in ValidReceiptNumbers for ReceiptNumber in ReceiptNumber_List):
@@ -126,12 +133,19 @@ def GenerateRoomRentReceipt_EXPECT(Month = None, ReceiptNumber_List = None):
         while True:
             IsRunning, ReceiptNumber_List = GenerateList('Receipt NOs (eg. 11-22, 33)')
             if not IsRunning:
-                cursor.execute(f"SELECT [Receipt Number] FROM [Payment Details] WHERE [Status] = 'UNPAID' AND [For The Month OF] = '{Month}' \
-                                 UNION \
-                                 SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [Status] = 'UNPAID' AND [For The Month OF] = '{Month}';")
+                if ReceiptNumber_List[0] == 'FIND RECEIPT NUMBER':
+                    GetReceiptNumber(Month)
+                    return GenerateRoomRentReceipt_SPECIFIC(Month)
+
+                cursor.execute(f"""
+                                 SELECT [Receipt Number] FROM [Payment Details] WHERE [For The Month OF] = '{Month}'
+                                 UNION
+                                 SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [For The Month OF] = '{Month}';
+                """)
                 RawData = cursor.fetchall()
-                ValidReceiptNumbers = [str(ReceiptNumber[0]) for ReceiptNumber in RawData]
+                ValidReceiptNumbers = [str(ReceiptNumber) for ReceiptNumber, in RawData]
                 if all(ReceiptNumber in ValidReceiptNumbers for ReceiptNumber in ReceiptNumber_List):
+                    ReceiptNumber_List = [int(ReceiptNumber) for ReceiptNumber in ReceiptNumber_List]
                     break
                 else:
                     print('Some Receipt Numbers Are NOT VALID, Try Again...')
@@ -215,9 +229,15 @@ def GenerateShopRentReceipt_SPECIFIC(Month = None, ReceiptNumber_List = None):
         while True:
             IsRunning, ReceiptNumber_List = GenerateList('Receipt NOs (eg. 11-22, 33)')
             if not IsRunning:
-                cursor.execute(f"SELECT [Receipt Number] FROM [Payment Details] WHERE [For The Month OF] = '{Month}' \
-                                 UNION \
-                                 SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [For The Month OF] = '{Month}';")
+                if ReceiptNumber_List[0] == 'FIND RECEIPT NUMBER':
+                    GetReceiptNumber(Month)
+                    return GenerateRoomRentReceipt_SPECIFIC(Month)
+
+                cursor.execute(f"""
+                                 SELECT [Receipt Number] FROM [Payment Details] WHERE [For The Month OF] = '{Month}'
+                                 UNION
+                                 SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [For The Month OF] = '{Month}';
+                """)
                 RawData = cursor.fetchall()
                 ValidReceiptNumbers = [str(ReceiptNumber[0]) for ReceiptNumber in RawData]
                 if all(ReceiptNumber in ValidReceiptNumbers for ReceiptNumber in ReceiptNumber_List):
@@ -269,19 +289,26 @@ def GenerateShopRentReceipt_SPECIFIC(Month = None, ReceiptNumber_List = None):
     print('\n<<<<<<<<<<+>>>>>>>>>>\n')
 
 def GenerateShopRentReceipt_EXPECT(Month = None, ReceiptNumber_List = None):
-    PreviousMonth, Month, PenultimateMonth, DatePreference = GetMonth(['WITHOUT MONTH'], Month)
+    PreviousMonth, Month, _, DatePreference = GetMonth(['WITHOUT MONTH'], Month)
     LDate = Date[-5:] if DatePreference == 'WITHOUT MONTH' else Date[-8:]
 
     if ReceiptNumber_List is None:
         while True:
             IsRunning, ReceiptNumber_List = GenerateList('Receipt NOs (eg. 11-22, 33)')
             if not IsRunning:
-                cursor.execute(f"SELECT [Receipt Number] FROM [Payment Details] WHERE [Status] = 'UNPAID' AND [For The Month OF] = '{Month}' \
-                                 UNION \
-                                 SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [Status] = 'UNPAID' AND [For The Month OF] = '{Month}';")
+                if ReceiptNumber_List[0] == 'FIND RECEIPT NUMBER':
+                    GetReceiptNumber(Month)
+                    return GenerateRoomRentReceipt_SPECIFIC(Month)
+
+                cursor.execute(f"""
+                                 SELECT [Receipt Number] FROM [Payment Details] WHERE [For The Month OF] = '{Month}'
+                                 UNION
+                                 SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [For The Month OF] = '{Month}';
+                """)
                 RawData = cursor.fetchall()
-                ValidReceiptNumbers = [str(ReceiptNumber[0]) for ReceiptNumber in RawData]
+                ValidReceiptNumbers = [str(ReceiptNumber) for ReceiptNumber, in RawData]
                 if all(ReceiptNumber in ValidReceiptNumbers for ReceiptNumber in ReceiptNumber_List):
+                    ReceiptNumber_List = [int(ReceiptNumber) for ReceiptNumber in ReceiptNumber_List]
                     break
                 else:
                     print('Some Receipt Numbers Are NOT VALID, Try Again...')
@@ -636,6 +663,24 @@ def GetTenantCount(ID):
             return int(TenantCount)
         else:
             print('INVALID Tenant Count, TRY AGAIN...')
+
+def GetReceiptNumber(Month):
+    print("\n\n---- ENTER 'STOP' TO QUIT ----")
+    print('\n<<<<<+>>>>>')
+    while True:
+        TenantName = input('\nEnter The Tenant Name To Receipt Number(s): ').strip().upper()
+        if TenantName == 'STOP':
+            break
+        Records = FetchData_TenantID_FROM_TenantName(False, TenantName)
+        if Records is not None:
+            for Record in Records:
+                Data = FetchData_ReceiptNumber_FROM_TenantID(False, Record[0], Month)
+                if Data is not None:
+                    print(f"\n>> The Receipt Number(s) Correspond To The Tenant (ID: {Record[0]}; Name: {Record[1]}) Is(Are):")
+                    for i, (ReceiptNumber, Status) in enumerate(Data):
+                        print(f"  {i+1}) {ReceiptNumber}  (Status: {Status})")
+        print()
+    print('\n<<<<<+>>>>>')
 
 
 def GetDrive(AvailableRemovableDrives, ChosenDrive, SourceFile):
