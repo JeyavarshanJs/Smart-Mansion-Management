@@ -1,10 +1,11 @@
 import pyodbc
 
+from CustomModules.DataHandlingModule import *
+
 # Establish Connection
 try:
-    con = pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=D:\Python Projects\Smart-Mansion-Management\Database (MS Access).accdb;')
-except:
+    con = pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=' + rf'{PermanentData['Database Path']};')
+    cursor = con.cursor()
+except Exception:
     print('Database Connection FAILED') 
 
-# Create a Cursor
-cursor = con.cursor()

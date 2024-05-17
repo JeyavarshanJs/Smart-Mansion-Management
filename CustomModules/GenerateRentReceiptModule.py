@@ -6,23 +6,25 @@ from PIL import Image, ImageDraw, ImageFont
 from CustomModules.VariablesModule import *
 from CustomModules.EstablishConnection import *
 from CustomModules.FetchDataModule import *
+from CustomModules.DataHandlingModule import *
 
 Today = datetime.date.today()
 Date = Today.strftime(r'%d/%m/%Y')
+Year = Today.strftime('%Y')
 
 
 # GENERATE RENT RECEIPT
 def GenerateRoomRentReceipt_ALL():
-    PreviousMonth, Month, PenultimateMonth, DatePreference = GetMonth(['WITHOUT MONTH'])
+    PreviousMonth, Month, DatePreference = GetMonth(['WITHOUT MONTH'])
     LDate = Date[-5:] if DatePreference == 'WITHOUT MONTH' else Date[-8:]
-    
+
     print('\n<<<<<<<<<<+>>>>>>>>>>')
-    cursor.execute(f"SELECT [Tenant ID], [Year (YYYY)], [Tenant Name], [Room/Shop ID], [Receipt Number], [Individual Rent] \
-                     FROM [Payment Details] WHERE [Status] = 'UNPAID' AND [For The Month Of] = '{Month}';")
+    cursor.execute(f"SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Receipt Number], [Individual Rent] FROM [Payment Details] WHERE [Status] = 'UNPAID' \
+                     AND [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}';")
     Records = cursor.fetchall()
     for Record in Records:
-        TenantID, Year, TenantName, ID, ReceiptNumber = Record[:5]
-        FinalAmount= int(Record[5])
+        TenantID, TenantName, ID, ReceiptNumber = Record[:4]
+        FinalAmount= int(Record[4])
 
         if ID not in Room_IDs:
             print('\n', '-' * 50, sep='')
@@ -30,25 +32,14 @@ def GenerateRoomRentReceipt_ALL():
             print('-' * 50, '\n', sep='')
             continue
 
-        cursor.execute(f"SELECT [Tenant Count], [Rent-1], [Rent-2], [Rent-3] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}';")
-        Data = cursor.fetchone()
-        TenantCount = Data[0] if Month == PenultimateMonth else GetMonth(ID)
-        Room_Rent = math.ceil((Data[TenantCount])/TenantCount) if TenantCount != 0 else 0
-
+        DaysOccupied, TenantCount, ClosingReading, OpeningReading, _ = GetData_MonthlyReportData(ID, Month)
+        Room_Rent = GetTotalRent(ID, TenantCount, DaysOccupied)
         BalanceDUE = GetBalanceDUE(TenantID, ID, PreviousMonth)
-
-        cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading] FROM [Monthly report Data] \
-                         WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
-        Data = cursor.fetchone()
-        Days_Occupied = Data[0]
-        Room_Rent = math.ceil((Room_Rent * Days_Occupied)/30)
-        ClosingReading, OpeningReading = round(Data[1], 1), round(Data[2], 1)
-
         GenerateRoomRentReceipt(LDate, FinalAmount, ID, Month, Year, TenantName, ClosingReading, OpeningReading, Room_Rent, BalanceDUE, ReceiptNumber)
     print('\n<<<<<<<<<<+>>>>>>>>>>\n')
 
 def GenerateRoomRentReceipt_SPECIFIC(Month = None, ReceiptNumber_List = None):
-    PreviousMonth, Month, _, DatePreference = GetMonth(['WITHOUT DATE', 'WITHOUT MONTH'], Month)
+    PreviousMonth, Month, DatePreference = GetMonth(['WITHOUT DATE', 'WITHOUT MONTH'], Month)
     LDate = Date[-8:] if DatePreference == 'WITHOUT DATE' else Date[-5:] if DatePreference == 'WITHOUT MONTH' else Date
 
     if ReceiptNumber_List is None:
@@ -59,29 +50,24 @@ def GenerateRoomRentReceipt_SPECIFIC(Month = None, ReceiptNumber_List = None):
                     GetReceiptNumber(Month)
                     return GenerateRoomRentReceipt_SPECIFIC(Month)
 
-                cursor.execute(f"""
-                                 SELECT [Receipt Number] FROM [Payment Details] WHERE [For The Month OF] = '{Month}'
-                                 UNION
-                                 SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [For The Month OF] = '{Month}';
-                """)
-                RawData = cursor.fetchall()
-                ValidReceiptNumbers = [str(ReceiptNumber[0]) for ReceiptNumber in RawData]
+                ValidReceiptNumbers = GetValidReceiptNumbers(Month)
                 if all(ReceiptNumber in ValidReceiptNumbers for ReceiptNumber in ReceiptNumber_List):
                     break
                 else:
-                    print('Some Receipt Numbers Are NOT VALID, Try Again...')
+                    print('>> Some Receipt Numbers Are NOT VALID, Try Again <<')
 
     print('\n<<<<<<<<<<+>>>>>>>>>>')
     for ReceiptNumber in ReceiptNumber_List:
-        cursor.execute(f"SELECT [Individual Rent], [Year (YYYY)], [Tenant ID], [Tenant Name], [Room/Shop ID] FROM [Payment Details] WHERE [Receipt Number] = {ReceiptNumber};")
+        cursor.execute(f"SELECT [Individual Rent], [Tenant ID], [Tenant Name], [Room/Shop ID] FROM [Payment Details] WHERE [Receipt Number] = {ReceiptNumber} \
+                         AND [Year (YYYY)] = '{Year}';")
         Record = cursor.fetchone()
         RNO_Type = 'Standard'
         if Record is None:
-            cursor.execute(f"SELECT [Individual Rent], [Year (YYYY)], [Tenant ID], [Tenant Name], [Room/Shop ID] FROM [Payment Details (NS)] \
-                        WHERE [Receipt Number] = {ReceiptNumber};")
+            cursor.execute(f"SELECT [Individual Rent], [Tenant ID], [Tenant Name], [Room/Shop ID] FROM [Payment Details (NS)] WHERE [Receipt Number] = {ReceiptNumber} \
+                             AND [Year (YYYY)] = '{Year}';")
             Record = cursor.fetchone()
             RNO_Type = 'Non-Standard'
-        Year, TenantID, TenantName, ID = Record[1:]
+        TenantID, TenantName, ID = Record[1:]
         FinalAmount= int(Record[0])
 
         if ID not in Room_IDs:
@@ -90,24 +76,27 @@ def GenerateRoomRentReceipt_SPECIFIC(Month = None, ReceiptNumber_List = None):
             print('-' * 50, '\n', sep='')
             continue
 
-        cursor.execute(f"SELECT [Tenant Count], [Rent-1], [Rent-2], [Rent-3] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}'")
-        Data = cursor.fetchone()
-        TenantCount = Data[0] if Month.capitalize() in [calendar.month_name[Today.month-1], calendar.month_name[Today.month]] else GetTenantCount(ID)
-        Room_Rent = math.ceil((Data[TenantCount])/TenantCount) if TenantCount != 0 else 0
-
-        BalanceDUE = GetBalanceDUE(TenantID, ID, PreviousMonth)
-
         if RNO_Type == 'Standard':
-            cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading] FROM [Monthly report Data] \
-                WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
+            DaysOccupied, TenantCount, ClosingReading, OpeningReading, _ = GetData_MonthlyReportData(ID, Month)
         elif RNO_Type == 'Non-Standard':
-            cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading] FROM [Unusual Occupancy Details] \
-                WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
-        Data = cursor.fetchone()
-        Days_Occupied = Data[0]
-        Room_Rent = math.ceil((Room_Rent * Days_Occupied)/30)
-        ClosingReading, OpeningReading = round(Data[1], 1), round(Data[2], 1)
+            cursor.execute(f"SELECT [Days Occupied], [Tenant Count], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading] FROM [Unusual Occupancy Details] \
+                WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}' ORDER BY [Closing Date];")
+            RawRecords = cursor.fetchall()
 
+            cursor.execute(f"SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}' \
+                             AND [Year (YYYY)] = '{Year}' ORDER BY [Receipt Number];")
+            RawRNOs = cursor.fetchall()
+
+            RNOs = []
+            for Record in RawRecords:
+                RNOs.append([str(RNO) for RNO, in RawRNOs[:Record[1]]])
+                del RawRNOs[:Record[1]]
+
+            Index, = (Index for Index, RNO_List in enumerate(RNOs) if ReceiptNumber in RNO_List)
+            DaysOccupied, TenantCount, ClosingReading, OpeningReading, _ = GetData_MonthlyReportData(ID, Month, RawRecords[Index])
+
+        Room_Rent = GetTotalRent(ID, TenantCount, DaysOccupied)
+        BalanceDUE = GetBalanceDUE(TenantID, ID, PreviousMonth) if RNO_Type == 'Standard' else 0
         GenerateRoomRentReceipt(LDate, FinalAmount, ID, Month, Year, TenantName, ClosingReading, OpeningReading, Room_Rent, BalanceDUE, ReceiptNumber)
     print('\n<<<<<<<<<<+>>>>>>>>>>\n')
 
@@ -126,7 +115,7 @@ def GenerateRoomRentReceipt_SPECIFIC(Month = None, ReceiptNumber_List = None):
     #     Print(rf"Final Print/Room {ReceiptNumber}_{TenantName}.pdf", )
 
 def GenerateRoomRentReceipt_EXPECT(Month = None, ReceiptNumber_List = None):
-    PreviousMonth, Month, PenultimateMonth, DatePreference = GetMonth(['WITHOUT MONTH'], Month)
+    PreviousMonth, Month, DatePreference = GetMonth(['WITHOUT MONTH'], Month)
     LDate = Date[-5:] if DatePreference == 'WITHOUT MONTH' else Date[-8:]
 
     if ReceiptNumber_List is None:
@@ -135,28 +124,22 @@ def GenerateRoomRentReceipt_EXPECT(Month = None, ReceiptNumber_List = None):
             if not IsRunning:
                 if ReceiptNumber_List[0] == 'FIND RECEIPT NUMBER':
                     GetReceiptNumber(Month)
-                    return GenerateRoomRentReceipt_SPECIFIC(Month)
+                    return GenerateRoomRentReceipt_EXPECT(Month)
 
-                cursor.execute(f"""
-                                 SELECT [Receipt Number] FROM [Payment Details] WHERE [For The Month OF] = '{Month}'
-                                 UNION
-                                 SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [For The Month OF] = '{Month}';
-                """)
-                RawData = cursor.fetchall()
-                ValidReceiptNumbers = [str(ReceiptNumber) for ReceiptNumber, in RawData]
+                ValidReceiptNumbers = GetValidReceiptNumbers(Month)
                 if all(ReceiptNumber in ValidReceiptNumbers for ReceiptNumber in ReceiptNumber_List):
                     ReceiptNumber_List = [int(ReceiptNumber) for ReceiptNumber in ReceiptNumber_List]
                     break
                 else:
-                    print('Some Receipt Numbers Are NOT VALID, Try Again...')
+                    print('>> Some Receipt Numbers Are NOT VALID, Try Again <<')
 
     print('\n<<<<<<<<<<+>>>>>>>>>>')
-    cursor.execute(f"SELECT [Tenant ID], [Year (YYYY)], [Tenant Name], [Room/Shop ID], [Receipt Number], [Individual Rent] \
-                     FROM [Payment Details] WHERE [Status] = 'UNPAID' AND [For The Month Of] = '{Month}';")
+    cursor.execute(f"SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Receipt Number], [Individual Rent] FROM [Payment Details] WHERE [Status] = 'UNPAID' \
+                     AND [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}';")
     Records = cursor.fetchall()
     for Record in Records:
-        TenantID, Year, TenantName, ID, ReceiptNumber = Record[:5]
-        FinalAmount= int(Record[5])
+        TenantID, TenantName, ID, ReceiptNumber = Record[:4]
+        FinalAmount= int(Record[4])
 
         if ReceiptNumber in ReceiptNumber_List:
             continue
@@ -166,34 +149,23 @@ def GenerateRoomRentReceipt_EXPECT(Month = None, ReceiptNumber_List = None):
             print('-' * 50, '\n', sep='')
             continue
 
-        cursor.execute(f"SELECT [Tenant Count], [Rent-1], [Rent-2], [Rent-3] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}';")
-        Data = cursor.fetchone()
-        TenantCount = Data[0] if Month == PenultimateMonth else GetMonth(ID)
-        Room_Rent = math.ceil((Data[TenantCount])/TenantCount) if TenantCount != 0 else 0
-
+        DaysOccupied, TenantCount, ClosingReading, OpeningReading = GetData_MonthlyReportData(ID, Month)
+        Room_Rent = GetTotalRent(ID, TenantCount, DaysOccupied)
         BalanceDUE = GetBalanceDUE(TenantID, ID, PreviousMonth)
-
-        cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading] FROM [Monthly report Data] \
-                         WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
-        Data = cursor.fetchone()
-        Days_Occupied = Data[0]
-        Room_Rent = math.ceil((Room_Rent * Days_Occupied)/30)
-        ClosingReading, OpeningReading = round(Data[1], 1), round(Data[2], 1)
-
         GenerateRoomRentReceipt(LDate, FinalAmount, ID, Month, Year, TenantName, ClosingReading, OpeningReading, Room_Rent, BalanceDUE, ReceiptNumber)
     print('\n<<<<<<<<<<+>>>>>>>>>>\n')
 
 def GenerateShopRentReceipt_ALL():
-    PreviousMonth, Month, _, DatePreference = GetMonth(['WITHOUT MONTH'])
+    PreviousMonth, Month, DatePreference = GetMonth(['WITHOUT MONTH'])
     LDate = Date[-5:] if DatePreference == 'WITHOUT MONTH' else Date[-8:]
 
     print('\n<<<<<<<<<<+>>>>>>>>>>')
-    cursor.execute(f"SELECT [Tenant ID], [Year (YYYY)], [Tenant Name], [Room/Shop ID], [Receipt Number], [Individual Rent] \
-                     FROM [Payment Details] WHERE [Status] = 'UNPAID' AND [For The Month Of] = '{Month}';")
+    cursor.execute(f"SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Receipt Number], [Individual Rent] FROM [Payment Details] WHERE [Status] = 'UNPAID' \
+                     AND [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}';")
     Records = cursor.fetchall()
     for Record in Records:
-        TenantID, Year, TenantName, ID, ReceiptNumber = Record[:5]
-        FinalAmount= int(Record[5])
+        TenantID, TenantName, ID, ReceiptNumber = Record[:4]
+        FinalAmount= int(Record[4])
 
         cursor.execute(f"SELECT [Shop Name (Optional)] FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}' AND [Tenant ID] = '{TenantID}';")
         ShopName = cursor.fetchone()[0]
@@ -204,25 +176,15 @@ def GenerateShopRentReceipt_ALL():
             print('-' * 50, '\n', sep='')
             continue
 
-        cursor.execute(f"SELECT [Rent-1] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}'")
-        Shop_Rent = cursor.fetchone()[0]
-
-        BalanceDUE = GetBalanceDUE(TenantID, ID, PreviousMonth)
-
-        cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading], [Closing Date] \
-                       FROM [Monthly report Data] WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
-        Data = cursor.fetchone()
-        Days_Occupied = Data[0]
-        Shop_Rent = math.ceil((Shop_Rent * Days_Occupied)/30)
-        ClosingReading,OpeningReading = round(Data[1], 1), round(Data[2], 1)
-        ClosingDate = datetime.date.strftime(Data[3], r'%d/%m/%Y')
+        DaysOccupied, TenantCount, ClosingReading, OpeningReading, ClosingDate = GetData_MonthlyReportData(ID, Month)
         OpeningDate = GetOpeningDate(Month, PreviousMonth, ID)
-
+        Shop_Rent = GetTotalRent(ID, TenantCount, DaysOccupied)
+        BalanceDUE = GetBalanceDUE(TenantID, ID, PreviousMonth)
         GenerateShopRentReceipt(LDate, FinalAmount, ID, Month, Year, TenantName, ClosingReading, OpeningReading, Shop_Rent, BalanceDUE, ReceiptNumber, ShopName, ClosingDate, OpeningDate)
     print('\n<<<<<<<<<<+>>>>>>>>>>\n')
 
 def GenerateShopRentReceipt_SPECIFIC(Month = None, ReceiptNumber_List = None):
-    PreviousMonth, Month, _, DatePreference = GetMonth(['WITHOUT DATE', 'WITHOUT MONTH'], Month)
+    PreviousMonth, Month, DatePreference = GetMonth(['WITHOUT DATE', 'WITHOUT MONTH'], Month)
     LDate = Date[-8:] if DatePreference == 'WITHOUT DATE' else Date[-5:] if DatePreference == 'WITHOUT MONTH' else Date
 
     if ReceiptNumber_List is None:
@@ -231,31 +193,26 @@ def GenerateShopRentReceipt_SPECIFIC(Month = None, ReceiptNumber_List = None):
             if not IsRunning:
                 if ReceiptNumber_List[0] == 'FIND RECEIPT NUMBER':
                     GetReceiptNumber(Month)
-                    return GenerateRoomRentReceipt_SPECIFIC(Month)
+                    return GenerateShopRentReceipt_SPECIFIC(Month)
 
-                cursor.execute(f"""
-                                 SELECT [Receipt Number] FROM [Payment Details] WHERE [For The Month OF] = '{Month}'
-                                 UNION
-                                 SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [For The Month OF] = '{Month}';
-                """)
-                RawData = cursor.fetchall()
-                ValidReceiptNumbers = [str(ReceiptNumber[0]) for ReceiptNumber in RawData]
+                ValidReceiptNumbers = GetValidReceiptNumbers(Month)
                 if all(ReceiptNumber in ValidReceiptNumbers for ReceiptNumber in ReceiptNumber_List):
                     break
                 else:
-                    print('Some Receipt Numbers Are NOT VALID, Try Again...')
+                    print('>> Some Receipt Numbers Are NOT VALID, Try Again <<')
 
     print('\n<<<<<<<<<<+>>>>>>>>>>')
     for ReceiptNumber in ReceiptNumber_List:
-        cursor.execute(f"SELECT [Individual Rent], [Year (YYYY)], [Tenant ID], [Tenant Name], [Room/Shop ID] FROM [Payment Details] WHERE [Receipt Number] = {ReceiptNumber};")
+        cursor.execute(f"SELECT [Individual Rent], [Tenant ID], [Tenant Name], [Room/Shop ID] FROM [Payment Details] WHERE [Receipt Number] = {ReceiptNumber} \
+                         AND [Year (YYYY)] = '{Year}';")
         Record = cursor.fetchone()
         RNO_Type = 'Standard'
         if Record is None:
-            cursor.execute(f"SELECT [Individual Rent], [Year (YYYY)], [Tenant ID], [Tenant Name], [Room/Shop ID] FROM [Payment Details (NS)] \
-                        WHERE [Receipt Number] = {ReceiptNumber};")
+            cursor.execute(f"SELECT [Individual Rent], [Tenant ID], [Tenant Name], [Room/Shop ID] FROM [Payment Details (NS)] WHERE [Receipt Number] = {ReceiptNumber} \
+                             AND [Year (YYYY)] = '{Year}';")
             Record = cursor.fetchone()
             RNO_Type = 'Non-Standard'
-        Year, TenantID, TenantName, ID = Record[1:]
+        TenantID, TenantName, ID = Record[1:]
         FinalAmount= int(Record[0])
 
         cursor.execute(f"SELECT [Shop Name (Optional)] FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}' AND [Tenant ID] = '{TenantID}'")
@@ -267,24 +224,28 @@ def GenerateShopRentReceipt_SPECIFIC(Month = None, ReceiptNumber_List = None):
             print('-' * 50, '\n', sep='')
             continue
 
-        cursor.execute(f"SELECT [Rent-1] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}'")
-        Shop_Rent = cursor.fetchone()[0]
-
-        BalanceDUE = GetBalanceDUE(TenantID, ID, PreviousMonth)
-
         if RNO_Type == 'Standard':
-            cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading], [Closing Date] FROM [Monthly report Data] \
-                WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
+            DaysOccupied, TenantCount, ClosingReading, OpeningReading, ClosingDate = GetData_MonthlyReportData(ID, Month)
         elif RNO_Type == 'Non-Standard':
-            cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading], [Closing Date] FROM [Unusual Occupancy Details] \
-                WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
-        Data = cursor.fetchone()
-        Days_Occupied = Data[0]
-        Shop_Rent = math.ceil((Shop_Rent * Days_Occupied)/30)
-        ClosingReading, OpeningReading = round(Data[1], 1), round(Data[2], 1)
-        ClosingDate = datetime.date.strftime(Data[3], r'%d/%m/%Y')
-        OpeningDate = GetOpeningDate(Month, PreviousMonth, ID)
+            cursor.execute(f"SELECT [Days Occupied], [Tenant Count], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading], [Closing Date] FROM [Unusual Occupancy Details] \
+                WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}' ORDER BY [Closing Date];")
+            RawRecords = cursor.fetchall()
 
+            cursor.execute(f"SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}' \
+                             AND [Year (YYYY)] = '{Year}' ORDER BY [Receipt Number];")
+            RawRNOs = cursor.fetchall()
+
+            RNOs = []
+            for Record in RawRecords:
+                RNOs.append([str(RNO) for RNO, in RawRNOs[:Record[1]]])
+                del RawRNOs[:Record[1]]
+
+            Index, = (Index for Index, RNO_List in enumerate(RNOs) if ReceiptNumber in RNO_List)
+            DaysOccupied, TenantCount, ClosingReading, OpeningReading, ClosingDate = GetData_MonthlyReportData(ID, Month, RawRecords[Index])
+
+        OpeningDate = GetOpeningDate(Month, PreviousMonth, ID)
+        Shop_Rent = GetTotalRent(ID, TenantCount, DaysOccupied)
+        BalanceDUE = GetBalanceDUE(TenantID, ID, PreviousMonth) if RNO_Type == 'Standard' else 0
         GenerateShopRentReceipt(LDate, FinalAmount, ID, Month, Year, TenantName, ClosingReading, OpeningReading, Shop_Rent, BalanceDUE, ReceiptNumber, ShopName, ClosingDate, OpeningDate)
     print('\n<<<<<<<<<<+>>>>>>>>>>\n')
 
@@ -298,28 +259,22 @@ def GenerateShopRentReceipt_EXPECT(Month = None, ReceiptNumber_List = None):
             if not IsRunning:
                 if ReceiptNumber_List[0] == 'FIND RECEIPT NUMBER':
                     GetReceiptNumber(Month)
-                    return GenerateRoomRentReceipt_SPECIFIC(Month)
+                    return GenerateShopRentReceipt_EXPECT(Month)
 
-                cursor.execute(f"""
-                                 SELECT [Receipt Number] FROM [Payment Details] WHERE [For The Month OF] = '{Month}'
-                                 UNION
-                                 SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [For The Month OF] = '{Month}';
-                """)
-                RawData = cursor.fetchall()
-                ValidReceiptNumbers = [str(ReceiptNumber) for ReceiptNumber, in RawData]
+                ValidReceiptNumbers = GetValidReceiptNumbers(Month)
                 if all(ReceiptNumber in ValidReceiptNumbers for ReceiptNumber in ReceiptNumber_List):
                     ReceiptNumber_List = [int(ReceiptNumber) for ReceiptNumber in ReceiptNumber_List]
                     break
                 else:
-                    print('Some Receipt Numbers Are NOT VALID, Try Again...')
+                    print('>> Some Receipt Numbers Are NOT VALID, Try Again <<')
 
     print('\n<<<<<<<<<<+>>>>>>>>>>')
-    cursor.execute(f"SELECT [Tenant ID], [Year (YYYY)], [Tenant Name], [Room/Shop ID], [Receipt Number], [Individual Rent] \
-                     FROM [Payment Details] WHERE [Status] = 'UNPAID' AND [For The Month Of] = '{Month}';")
+    cursor.execute(f"SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Receipt Number], [Individual Rent] FROM [Payment Details] WHERE [Status] = 'UNPAID' \
+                     AND [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}';")
     Records = cursor.fetchall()
     for Record in Records:
-        TenantID, Year, TenantName, ID, ReceiptNumber = Record[:5]
-        FinalAmount= int(Record[5])
+        TenantID, TenantName, ID, ReceiptNumber = Record[:4]
+        FinalAmount= int(Record[4])
 
         cursor.execute(f"SELECT [Shop Name (Optional)] FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}' AND [Tenant ID] = '{TenantID}'")
         ShopName = cursor.fetchone()[0]
@@ -332,20 +287,10 @@ def GenerateShopRentReceipt_EXPECT(Month = None, ReceiptNumber_List = None):
             print('-' * 50, '\n', sep='')
             continue
 
-        cursor.execute(f"SELECT [Rent-1] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}'")
-        Shop_Rent = cursor.fetchone()[0]
-
-        BalanceDUE = GetBalanceDUE(TenantID, ID, PreviousMonth)
-
-        cursor.execute(f"SELECT [Number Of Days Occupied], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading], [Closing Date] \
-                       FROM [Monthly report Data] WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}';")
-        Data = cursor.fetchone()
-        Days_Occupied = Data[0]
-        Shop_Rent = math.ceil((Shop_Rent * Days_Occupied)/30)
-        ClosingReading, OpeningReading = round(Data[1], 1), round(Data[2], 1)
-        ClosingDate = datetime.date.strftime(Data[3], r'%d/%m/%Y')
+        DaysOccupied, TenantCount, ClosingReading, OpeningReading, ClosingDate = GetData_MonthlyReportData(ID, Month)
         OpeningDate = GetOpeningDate(Month, PreviousMonth, ID)
-
+        Shop_Rent = GetTotalRent(ID, TenantCount, DaysOccupied)
+        BalanceDUE = GetBalanceDUE(TenantID, ID, PreviousMonth)
         GenerateShopRentReceipt(LDate, FinalAmount, ID, Month, Year, TenantName, ClosingReading, OpeningReading, Shop_Rent, BalanceDUE, ReceiptNumber, ShopName, ClosingDate, OpeningDate)
     print('\n<<<<<<<<<<+>>>>>>>>>>\n')
 
@@ -361,13 +306,13 @@ def GenerateRoomRentReceipt(Date, FinalAmount: int, ID: str, Month: str, Year: s
     Template = Image.open(r'Static Templates\Room Rent Receipt-1.jpg', mode='r')
 
     Description_Size, Description_Colour = 50, (0, 0, 0)
-    Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
+    Description_Font = ImageFont.truetype(r'Fonts\CalibriFont Regular.ttf', Description_Size)
     Data_Size, Data_Colour = 45, (0, 0, 0)
-    Data_Font = ImageFont.truetype('CalibriFont Regular.ttf', Data_Size)
+    Data_Font = ImageFont.truetype(r'Fonts\CalibriFont Regular.ttf', Data_Size)
     FinalAmount_Size, FinalAmount_Colour = 50, (0, 0, 0)
-    FinalAmount_Font = ImageFont.truetype('CalibriFont Bold.ttf', FinalAmount_Size)
+    FinalAmount_Font = ImageFont.truetype(r'Fonts\CalibriFont Bold.ttf', FinalAmount_Size)
     ReceiptNumber_Size, ReceiptNumber_Colour = 45, (0, 0, 0)
-    ReceiptNumber_Font = ImageFont.truetype('CalibriFont Bold.ttf', ReceiptNumber_Size)
+    ReceiptNumber_Font = ImageFont.truetype(r'Fonts\CalibriFont Bold.ttf', ReceiptNumber_Size)
 
     Draw = ImageDraw.Draw(Template)
     FinalAmountText_Width = Draw.textlength(str(FinalAmount), font=Description_Font)
@@ -398,17 +343,17 @@ def GenerateRoomRentReceipt(Date, FinalAmount: int, ID: str, Month: str, Year: s
     Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
     Draw.text(Date_Position, Date, Data_Colour, Data_Font)
 
-    Template.save(rf'Rent Receipts\Room {ReceiptNumber}_{TenantName}-1.jpg', dpi = (300, 300))
+    Template.save(rf'{PermanentData['Output Location']}Rent Receipts\Room {ReceiptNumber}_{TenantName}-1.jpg', dpi = (300, 300))
 
     # Generating Rent Receipt-2
     Template = Image.open(r'Static Templates\Room Rent Receipt-2.jpg', mode='r')
 
     Description_Size, Description_Colour = 42, (0, 0, 0)
-    Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
+    Description_Font = ImageFont.truetype(r'Fonts\CalibriFont Regular.ttf', Description_Size)
     ReceiptNumber_Size, ReceiptNumber_Colour = 38, (0, 0, 0)
-    ReceiptNumber_Font = ImageFont.truetype('CalibriFont Bold.ttf', ReceiptNumber_Size)
+    ReceiptNumber_Font = ImageFont.truetype(r'Fonts\CalibriFont Bold.ttf', ReceiptNumber_Size)
     Date_Size, Date_Colour = 38, (0, 0, 0)
-    Date_Font = ImageFont.truetype('CalibriFont Regular.ttf', Date_Size)
+    Date_Font = ImageFont.truetype(r'Fonts\CalibriFont Regular.ttf', Date_Size)
 
     Draw = ImageDraw.Draw(Template)
     FinalAmountText_Width = Draw.textlength(str(FinalAmount), font=Description_Font)
@@ -427,7 +372,7 @@ def GenerateRoomRentReceipt(Date, FinalAmount: int, ID: str, Month: str, Year: s
     Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
     Draw.text(Date_Position, Date, Date_Colour, Date_Font)
 
-    Template.save(rf'Rent Receipts\Room {ReceiptNumber}_{TenantName}-2.jpg', dpi = (300, 300))
+    Template.save(rf'{PermanentData['Output Location']}Rent Receipts\Room {ReceiptNumber}_{TenantName}-2.jpg', dpi = (300, 300))
 
     print(f"\nRent Receipts generated for '{TenantName}'.")
     PrintSetup_ROOM(ReceiptNumber, TenantName)
@@ -436,20 +381,20 @@ def GenerateShopRentReceipt(Date, FinalAmount: int, ID: str, Month: str, Year: s
                             BalanceDUE: int, ReceiptNumber: int | str, ShopName: str, ClosingDate: str, OpeningDate: str) -> None:
     Today = datetime.date.today()
 
-    UtilityCharges = FinalAmount - Shop_Rent - BalanceDUE if ID != 'MILL' else FinalAmount - Shop_Rent
+    UtilityCharges = FinalAmount - Shop_Rent - BalanceDUE
     UnitsConsumed = round(ClosingReading - OpeningReading, 1)
 
     # Generating Rent Receipt-1
     Template = Image.open(r'Static Templates\Shop Rent Receipt-1.jpg', mode='r')
 
     Description_Size, Description_Colour = 55, (0, 0, 0)
-    Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
+    Description_Font = ImageFont.truetype(r'Fonts\CalibriFont Regular.ttf', Description_Size)
     Data_Size, Data_Colour = 50, (0, 0, 0)
-    Data_Font = ImageFont.truetype('CalibriFont Regular.ttf', Data_Size)
+    Data_Font = ImageFont.truetype(r'Fonts\CalibriFont Regular.ttf', Data_Size)
     FinalAmount_Size, FinalAmount_Colour = 50, (0, 0, 0)
-    FinalAmount_Font = ImageFont.truetype('CalibriFont Bold.ttf', FinalAmount_Size)
+    FinalAmount_Font = ImageFont.truetype(r'Fonts\CalibriFont Bold.ttf', FinalAmount_Size)
     ReceiptNumber_Size, ReceiptNumber_Colour = 50, (0, 0, 0)
-    ReceiptNumber_Font = ImageFont.truetype('CalibriFont Bold.ttf', ReceiptNumber_Size)
+    ReceiptNumber_Font = ImageFont.truetype(r'Fonts\CalibriFont Bold.ttf', ReceiptNumber_Size)
 
     Draw = ImageDraw.Draw(Template)
     FinalAmountText_Width = Draw.textlength(str(FinalAmount), font=Description_Font)
@@ -483,17 +428,17 @@ def GenerateShopRentReceipt(Date, FinalAmount: int, ID: str, Month: str, Year: s
     Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
     Draw.text(Date_Position, Date, Data_Colour, Data_Font)
 
-    Template.save(rf'Rent Receipts\Shop {ReceiptNumber}_{TenantName}-1.jpg', dpi = (300, 300))
+    Template.save(rf'{PermanentData['Output Location']}Rent Receipts\Shop {ReceiptNumber}_{TenantName}-1.jpg', dpi = (300, 300))
 
     # Generating Rent Receipt-2
     Template = Image.open(r'Static Templates\Shop Rent Receipt-2.jpg', mode='r')
 
     Description_Size, Description_Colour = 42, (0, 0, 0)
-    Description_Font = ImageFont.truetype('CalibriFont Regular.ttf', Description_Size)
+    Description_Font = ImageFont.truetype(r'Fonts\CalibriFont Regular.ttf', Description_Size)
     Date_Size, Date_Colour = 38, (0, 0, 0)
-    Date_Font = ImageFont.truetype('CalibriFont Regular.ttf', Date_Size)
+    Date_Font = ImageFont.truetype(r'Fonts\CalibriFont Regular.ttf', Date_Size)
     ReceiptNumber_Size, ReceiptNumber_Colour = 38, (0, 0, 0)
-    ReceiptNumber_Font = ImageFont.truetype('CalibriFont Bold.ttf', ReceiptNumber_Size)
+    ReceiptNumber_Font = ImageFont.truetype(r'Fonts\CalibriFont Bold.ttf', ReceiptNumber_Size)
 
     Draw = ImageDraw.Draw(Template)
     FinalAmountText_Width = Draw.textlength(str(FinalAmount), font=Description_Font)
@@ -512,7 +457,7 @@ def GenerateShopRentReceipt(Date, FinalAmount: int, ID: str, Month: str, Year: s
     Draw.text(ReceiptNumber_Position, str(ReceiptNumber), ReceiptNumber_Colour, ReceiptNumber_Font)
     Draw.text(Date_Position, Date, Date_Colour, Date_Font)
 
-    Template.save(rf'Rent Receipts\Shop {ReceiptNumber}_{TenantName}-2.jpg', dpi = (300, 300))
+    Template.save(rf'{PermanentData['Output Location']}Rent Receipts\Shop {ReceiptNumber}_{TenantName}-2.jpg', dpi = (300, 300))
 
     print(f"\nRent Receipts generated for '{TenantName}'.")
     PrintSetup_SHOP_1(ReceiptNumber, TenantName)
@@ -520,15 +465,15 @@ def GenerateShopRentReceipt(Date, FinalAmount: int, ID: str, Month: str, Year: s
 
 
 def PrintSetup_ROOM(ReceiptNumber, TenantName):
-    Receipt_1 = Image.open(rf"Rent Receipts\Room {ReceiptNumber}_{TenantName}-1.jpg")
-    Receipt_2 = Image.open(rf"Rent Receipts\Room {ReceiptNumber}_{TenantName}-2.jpg")
+    Receipt_1 = Image.open(rf"{PermanentData['Output Location']}Rent Receipts\Room {ReceiptNumber}_{TenantName}-1.jpg")
+    Receipt_2 = Image.open(rf"{PermanentData['Output Location']}Rent Receipts\Room {ReceiptNumber}_{TenantName}-2.jpg")
 
     PrintSetup = Image.new('RGB', (1248, 2244), (255, 255, 255))
 
     PrintSetup.paste(Receipt_1, (0, 0))
     PrintSetup.paste(Receipt_2, (0, Receipt_1.height))
 
-    OutputPath = rf"Final Print/Room {ReceiptNumber}_{TenantName}.pdf"
+    OutputPath = rf"{PermanentData['Output Location']}Final Print/Room {ReceiptNumber}_{TenantName}.pdf"
     PrintSetup.save(OutputPath, dpi = (300, 300))
 
     Drive = CopyReceipt_To_ExternalDrive(OutputPath)
@@ -536,25 +481,25 @@ def PrintSetup_ROOM(ReceiptNumber, TenantName):
         print(f">> Successfully Copied To The External Removable Drive '{Drive}' <<")
 
 def PrintSetup_SHOP_1(ReceiptNumber, TenantName):
-    Receipt = Image.open(rf"Rent Receipts\Shop {ReceiptNumber}_{TenantName}-1.jpg")
+    Receipt = Image.open(rf"{PermanentData['Output Location']}Rent Receipts\Shop {ReceiptNumber}_{TenantName}-1.jpg")
 
     PrintSetup = Image.new('RGB', (2244, 1535), (255, 255, 255))
 
     PrintSetup.paste(Receipt, (0, 0))
 
-    OutputPath = rf"Final Print/Shop {ReceiptNumber}_{TenantName}-1.pdf"
+    OutputPath = rf"{PermanentData['Output Location']}Final Print/Shop {ReceiptNumber}_{TenantName}-1.pdf"
     PrintSetup.save(OutputPath, dpi = (300, 300))
 
     CopyReceipt_To_ExternalDrive(OutputPath)
 
 def PrintSetup_SHOP_2(ReceiptNumber, TenantName):
-    Receipt = Image.open(rf"Rent Receipts\Shop {ReceiptNumber}_{TenantName}-2.jpg")
+    Receipt = Image.open(rf"{PermanentData['Output Location']}Rent Receipts\Shop {ReceiptNumber}_{TenantName}-2.jpg")
 
     PrintSetup = Image.new('RGB', (1122, 1535), (255, 255, 255))
 
     PrintSetup.paste(Receipt, (0, 0))
 
-    OutputPath = rf"Final Print/Shop {ReceiptNumber}_{TenantName}-2.pdf"
+    OutputPath = rf"{PermanentData['Output Location']}Final Print/Shop {ReceiptNumber}_{TenantName}-2.pdf"
     PrintSetup.save(OutputPath, dpi = (300, 300))
 
     Drive = CopyReceipt_To_ExternalDrive(OutputPath)
@@ -599,38 +544,38 @@ def GetMonth(AvailablePreferences: list, Month = None):
         DatePreference = GetPreference(AvailablePreferences)
 
     PreviousMonth = list(MonthNames.values())[(list(MonthNames.values()).index(Month))-1]
-    PenultimateMonth = calendar.month_name[Today.month-1].upper()
-    return PreviousMonth, Month, PenultimateMonth, DatePreference
+    return PreviousMonth, Month, DatePreference
 
 def GetPreference(AvailablePreferences: list):
     while True:
         RawData = input('Enter Your Preference (OPTIONAL): ').strip().upper()
         if RawData in AvailablePreferences:
             DatePreference = RawData
-            print('Preference ACCEPTED...')
+            print('>> Preference ACCEPTED <<')
             return DatePreference
         elif RawData == '':
             return None
-        # DatePreference = 'Without Date' if RawData.upper() ==  else 'Without Month' \
-        #                                 if RawData.upper() ==  else ''
         else:
-            print('INVALID Entry, TRY AGAIN...')
+            print('>> INVALID Entry, TRY AGAIN <<')
 
 def GetBalanceDUE(TenantID, ID, PreviousMonth):
-    cursor.execute(f"SELECT [DUE Amount] FROM [DUE Details] WHERE [Tenant ID] = '{TenantID}' AND [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{PreviousMonth}';")
+    cursor.execute(f"SELECT [DUE Amount] FROM [DUE Details] WHERE [Tenant ID] = '{TenantID}' AND [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{PreviousMonth}' \
+                     AND [Year (YYYY)] = '{Year}';")
     RawData = cursor.fetchone()
     return int(RawData[0]) if RawData != None else 0
 
 def GetOpeningDate(Month, PreviousMonth, ID):
-    cursor.execute(f"SELECT [Closing Date] FROM [Unusual Occupancy Details] WHERE [For The Month Of] = '{Month}' AND [Room/Shop ID] = '{ID}'")
+    cursor.execute(f"SELECT [Closing Date] FROM [Unusual Occupancy Details] WHERE [For The Month Of] = '{Month}' AND [Room/Shop ID] = '{ID}' AND [Year (YYYY)] = '{Year}';")
     RawData = cursor.fetchall()
     if RawData != []:
         DateOBJs = [datetime.datetime.strptime(str(Record[0])[:10], r'%Y-%m-%d') for Record in RawData]
-        OpeningDate = datetime.date.strftime(max(DateOBJs), r'%d/%m/%Y')
+        DateOBJ = max(DateOBJs) + datetime.timedelta(days=1)
+        OpeningDate = datetime.date.strftime(DateOBJ, r'%d/%m/%Y')
     else:
-        cursor.execute(f"SELECT [Closing Date] FROM [Monthly Report Data] WHERE [For The Month Of] = '{PreviousMonth}' AND [Room/Shop ID] = '{ID}'")
+        cursor.execute(f"SELECT [Closing Date] FROM [Monthly Report Data] WHERE [For The Month Of] = '{PreviousMonth}' AND [Room/Shop ID] = '{ID}' AND [Year (YYYY)] = '{Year}';")
         RawData = cursor.fetchone()
-        OpeningDate = datetime.date.strftime(RawData[0], r'%d/%m/%Y') if RawData != None else '---------------'
+        DateOBJ = RawData[0] + datetime.timedelta(days=1)
+        OpeningDate = datetime.date.strftime(DateOBJ, r'%d/%m/%Y') if RawData != None else '---------------'
     return OpeningDate
 
 def GenerateList(WhatToGet):
@@ -656,13 +601,17 @@ def GenerateList(WhatToGet):
             List.append(i)
     return False, List
 
-def GetTenantCount(ID):
-    while True:
-        TenantCount = input(f'\nEnter Tenant Count For The Room/Shop (ID: {ID}): ')
-        if TenantCount in ['1', '2', '3']:
-            return int(TenantCount)
-        else:
-            print('INVALID Tenant Count, TRY AGAIN...')
+def GetData_MonthlyReportData(ID, Month, Data=None):
+    if Data is None:
+        cursor.execute(f"SELECT [Days Occupied], [Tenant Count], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading], [Closing Date] FROM [Monthly Report Data] \
+                            WHERE [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}';")
+        Data = cursor.fetchone()
+    return Data[0], Data[1], round(Data[2], 1), round(Data[3], 1), None if len(Data) == 4 else datetime.date.strftime(Data[4], r'%d/%m/%Y')
+
+def GetTotalRent(ID, TenantCount, DaysOccupied):
+    cursor.execute(f"SELECT [Rent-1], [Rent-2], [Rent-3] FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}';")
+    Data = cursor.fetchone()
+    return math.ceil((((Data[TenantCount-1])/TenantCount) * DaysOccupied) / 30) if TenantCount != 0 else 0
 
 def GetReceiptNumber(Month):
     print("\n\n---- ENTER 'STOP' TO QUIT ----")
@@ -671,16 +620,28 @@ def GetReceiptNumber(Month):
         TenantName = input('\nEnter The Tenant Name To Receipt Number(s): ').strip().upper()
         if TenantName == 'STOP':
             break
-        Records = FetchData_TenantID_FROM_TenantName(False, TenantName)
-        if Records is not None:
-            for Record in Records:
-                Data = FetchData_ReceiptNumber_FROM_TenantID(False, Record[0], Month)
-                if Data is not None:
-                    print(f"\n>> The Receipt Number(s) Correspond To The Tenant (ID: {Record[0]}; Name: {Record[1]}) Is(Are):")
-                    for i, (ReceiptNumber, Status) in enumerate(Data):
-                        print(f"  {i+1}) {ReceiptNumber}  (Status: {Status})")
+        TID_Records = FetchData_TenantID_FROM_TenantName(False, TenantName)
+        if TID_Records is not None:
+            RR_Records = [FetchData_ReceiptNumber_FROM_TenantID(False, Record[0], Month) for Record in TID_Records]
+            if any(RR_Records):
+                for TID_Record, RR_Record in zip(TID_Records, RR_Records):
+                    if RR_Record is not None:
+                        print(f"\n>> The Receipt Number(s) Correspond To The Tenant (ID: {TID_Record[0]}; Name: {TID_Record[1]}) Is(Are):")
+                        for i, (ReceiptNumber, Status) in enumerate(RR_Record):
+                            print(f"  {i+1}) {ReceiptNumber}  (Status: {Status})")
+            else:
+                print('>> No Records Found, TRY AGAIN <<')
         print()
     print('\n<<<<<+>>>>>')
+
+def GetValidReceiptNumbers(Month):
+    cursor.execute(f"""
+                        SELECT [Receipt Number] FROM [Payment Details] WHERE [For The Month OF] = '{Month}' AND [Year (YYYY)] = '{Year}'
+                        UNION
+                        SELECT [Receipt Number] FROM [Payment Details (NS)] WHERE [For The Month OF] = '{Month}' AND [Year (YYYY)] = '{Year}';
+    """)
+    RawData = cursor.fetchall()
+    return [str(ReceiptNumber[0]) for ReceiptNumber in RawData]
 
 
 def GetDrive(AvailableRemovableDrives, ChosenDrive, SourceFile):

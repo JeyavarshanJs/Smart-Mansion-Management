@@ -1,3 +1,5 @@
+import time
+
 from CustomModules.EstablishConnection import *
 from CustomModules.VariablesModule import *
 from CustomModules.UpdateModule import *
@@ -5,13 +7,14 @@ from CustomModules.GenerateRentReceiptModule import *
 from CustomModules.InsertDataModule import *
 from CustomModules.DuplicateRecordsModule import *
 from CustomModules.FetchDataModule import *
+from CustomModules.SendNotificationModule import *
 
 def CustomAction_MonthEndAction():
     DuplicateRecords_MonthlyReportData()
     Update_ClosingReading_Field()
 
-    input('\nPress ENTER Key To Continue...')
-    Update_NumberOfDaysOccupied_Field()
+    input('\nPress ENTER Key To UPDATE Days Occupied...')
+    Update_DaysOccupied_Field()
 
 def CustomAction_MonthBeginningAction():
     Update_TenantsCount_Field()
@@ -23,7 +26,8 @@ def CustomAction_MonthBeginningAction():
 
     Delete_DUEDetails()
     DuplicateRecords_DUEDetails()
-    print()
+
+    SendNotification_ALL()
 
 def CustomAction_UnusualArrivalAction():
     ID, Date = InsertData_UnusualDepartureDetails()
@@ -56,16 +60,16 @@ def CustomAction_UnusualDepartureAction():
 def CustomAction_NewOccupancyAction():
     while True:
         ANS = input("\nDo You Want To Add Tenant's Information (Y/N): ").strip().upper()
-        if ANS in ['Y']:
+        if ANS in ['Y', '']:
             TenantID, Date = InsertData_TenantsInformation()
             InsertData_OccupancyInformation(TenantID, Date)
             break
-        elif ANS in ['N', '']:
+        elif ANS in ['N']:
             TenantID = InsertData_OccupancyInformation()
 
             print('\n\n<<<<<<<<+>>>>>>>>')
             AdvanceAmount = GetDetails('Advance Amount', int, '10000')
-            ReceiptNumber = GetDetails('Receipt Number', int)
+            ReceiptNumber = GetDetails('Receipt Number', int, CanBeNONE=True)
             print('\n<<<<<<<<+>>>>>>>>\n')
 
             cursor.execute(f"UPDATE [Tenant's Information] SET [Advance Amount] = ?, [Receipt Number] = ?, [Current Status] = 'OCCUPIED' WHERE ID = '{TenantID}';", (AdvanceAmount, ReceiptNumber))
@@ -73,7 +77,7 @@ def CustomAction_NewOccupancyAction():
             break
         elif ANS == 'FIND TENANT ID':
             print('\n>> Follow Along To Check For Tenant Details <<')
-            FetchData_TenantID_FROM_TenantName()
+            FetchData_TenantID_FROM_TenantName(False)
         else:
             print('>> INVALID Response, TRY AGAIN <<')
 

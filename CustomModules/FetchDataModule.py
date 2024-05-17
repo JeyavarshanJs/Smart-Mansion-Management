@@ -5,7 +5,8 @@ from prettytable import PrettyTable
 from CustomModules.VariablesModule import *
 from CustomModules.EstablishConnection import *
 
-Today = datetime.date.today() 
+Today = datetime.date.today()
+Year = Today.strftime('%Y') 
 
 
 def FetchData_TenantName_FROM_TenantID():
@@ -43,7 +44,7 @@ def FetchData_TenantID_FROM_TenantName(IsLoop = True, TenantName = None):
         if Records != []:
             return Records
         else:
-            print('No Records Found, TRY AGAIN...')
+            print('>> No Records Found, TRY AGAIN <<')
 
     if IsLoop:
         print("\n\n----ENTER 'STOP' TO QUIT----")
@@ -58,17 +59,8 @@ def FetchData_TenantID_FROM_TenantName(IsLoop = True, TenantName = None):
         Data = FetchData(TenantName)
         return Data if Data != 'QUIT' else None
 
-def FetchData_TenantID_FROM_OccupiedSpaceID():
-    print("\n\n----ENTER 'STOP' TO QUIT----")
-    while True:
-        ID = input('\nEnter The Room/Shop ID: ').strip().upper()
-        if ID == 'STOP':
-            print()
-            break
-        elif ID not in list(Shop_IDs + Room_IDs):
-            print('INVALID Tenant ID, TRY AGAIN...')
-            continue
-
+def FetchData_TenantID_FROM_OccupiedSpaceID(IsLoop = True, IString = 'Enter The Room/Shop ID'):
+    def FetchData(ID):
         cursor.execute(f"SELECT [Tenant ID], [Tenant Name] FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL;")
         Records = cursor.fetchall()
 
@@ -79,29 +71,48 @@ def FetchData_TenantID_FROM_OccupiedSpaceID():
         else:
             print('No Records Found, TRY AGAIN...')
 
+    if IsLoop:
+        print("\n\n----ENTER 'STOP' TO QUIT----")
+        while True:
+            ID = input('\nEnter The Room/Shop ID: ').strip().upper()
+            if ID == 'STOP':
+                print()
+                break
+            elif ID in list(Shop_IDs + Room_IDs):
+                FetchData(ID)
+            else:
+                print('INVALID Tenant ID, TRY AGAIN...')
+    else:
+        ID = input(f'\n{IString}: ').strip().upper()
+        if ID in list(Shop_IDs + Room_IDs):
+            FetchData(ID)
+        else:
+            print('INVALID Room/Shop ID, TRY AGAIN...')
+
 def FetchData_ReceiptNumber_FROM_TenantID(IsLoop = True, TenantID = None, Month = None):
     def FetchData(TenantID):
         if TenantID is None:
             TenantID = input('\nEnter The Tenant ID: ').strip().upper()
-            if TenantID in ['STOP', 'CHANGE MONTH']:
+            if TenantID in ['STOP', 'CHANGE MONTH'] and IsLoop:
                 print()
                 return None if TenantID == 'STOP' else FetchData_ReceiptNumber_FROM_TenantID()
             elif TenantID.isdigit():
                 TenantID = "{:04d}".format(int(TenantID))
             else:
-                print('INVALID Tenant ID, TRY AGAIN...')
+                print('>> INVALID Tenant ID, TRY AGAIN <<')
                 return FetchData(None)
 
-        cursor.execute(f"SELECT [Receipt Number], [Status] FROM [Payment Details] WHERE [Tenant ID] = '{TenantID}' AND [For The Month Of] = '{Month}';")
+        cursor.execute(f"""
+                       SELECT [Receipt Number], [Status] FROM [Payment Details] WHERE [Tenant ID] = '{TenantID}' AND [For The Month Of] = '{Month}'
+                       UNION ALL
+                       SELECT [Receipt Number], [Status] FROM [Payment Details (NS)] WHERE [Tenant ID] = '{TenantID}' AND [For The Month Of] = '{Month}';
+        """)
         Records = cursor.fetchall()
-        if Records == []:
-            cursor.execute(f"SELECT [Receipt Number], [Status] FROM [Payment Details (NS)] WHERE [Tenant ID] = '{TenantID}' AND [For The Month Of] = '{Month}';")
-            Records = cursor.fetchall()
 
         if Records != []:
             return Records
-        else:
-            print('No Records Found, TRY AGAIN...')
+        elif IsLoop:
+            print('>> No Records Found, TRY AGAIN <<')
 
     if Month is None:
         Month = GetDetails('Desired Month (eg. JAN or JANUARY)', PossibleValues= list(MonthNames.keys()) + list(MonthNames.values()) + [''])
@@ -132,7 +143,8 @@ def FetchData_UNPAID_Tenants():
                 WHERE Status = 'UNPAID' ORDER BY [For The Month Of], [Room/Shop ID]
                 UNION ALL
                 SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Individual Rent], [For The Month OF] FROM [Payment Details (NS)]
-                WHERE Status = 'UNPAID' ORDER BY [For The Month Of], [Room/Shop ID];
+                WHERE Status = 'UNPAID' 
+                ORDER BY [For The Month Of], [Room/Shop ID], [Tenant ID];
     """)
     RawRecords = cursor.fetchall()
 
@@ -250,24 +262,22 @@ def FetchDate_Vacancy():
     print()
 
 def FetchData_TotalCashReceived():
-    Today = datetime.date.today()
     while True:
-        Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
-        Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
-        if Month in MonthNames.keys():
-            Month = MonthNames[Month]
+        Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').strip().upper()
+        Month = (
+            calendar.month_name[Today.month-1].upper() if Month == '' else 
+            MonthNames[Month] if Month in MonthNames.keys() else Month
+        )
+        if Month in MonthNames.values():
             break
-        elif Month in MonthNames.values():
-            break
-        else:            
-            print('INVALID Month Name, TRY AGAIN...')
+        print('INVALID Month Name, TRY AGAIN...')
 
     cursor.execute(f"""
                 SELECT SUM([Total Rent]) FROM
                 (
-                    SELECT [Total Rent] FROM [Monthly Report Data] WHERE [For The Month Of] = '{Month}'
-                    UNION
-                    SELECT [Total Rent] FROM [Unusual Occupancy Details] WHERE [For The Month Of] = '{Month}'
+                    SELECT [Total Rent] FROM [Monthly Report Data] WHERE [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}'
+                    UNION ALL
+                    SELECT [Total Rent] FROM [Unusual Occupancy Details] WHERE [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}'
                 );
     """)
     TotalCashReceived = int(cursor.fetchone()[0])

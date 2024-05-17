@@ -8,9 +8,8 @@ from CustomModules.InsertDataModule import *
 from CustomModules.SendNotificationModule import *
 
 
-
 # MAIN MENU
-MAIN_MENU = [['EXIT', lambda: 'QUIT'], ['UPDATE'], ['GENERATE RENT RECEIPT'], ['CHECK CONSISTENCY'], ['DUPLICATE RECORDS'], ['FETCH DATA'], ['INSERT DATA'], ['SEND NOTIFICATION', lambda: SendNotification_ALL()], ['CUSTOM ACTION']]
+MAIN_MENU = [['EXIT', lambda: 'EXIT'], ['UPDATE'], ['GENERATE RENT RECEIPT'], ['CHECK CONSISTENCY'], ['DUPLICATE RECORDS'], ['FETCH DATA'], ['INSERT DATA'], ['SEND NOTIFICATION', lambda: SendNotification_ALL()], ['CUSTOM ACTION']]
 
 # SUB MENU (UPDATE)
 SUB_MENU_UPDATE = [['BACK', lambda: 'BACK'],
@@ -20,7 +19,11 @@ SUB_MENU_UPDATE = [['BACK', lambda: 'BACK'],
                    ['Tenant Count', lambda: Update_TenantsCount_Field()],
                    ['Current Status', lambda: Update_CurrentStatus_Field()],
                    ['Closing Sub-Meter Reading', lambda: Update_ClosingReading_Field()],
-                   ['Number Of Days Occupied', lambda: Update_NumberOfDaysOccupied_Field()]]
+                   ['Number Of Days Occupied', lambda: Update_DaysOccupied_Field()],
+                   ['Permanent Data']]
+SUB_MENU_UPDATE_PERMANENT_DATA = [['BACK', lambda: 'BACK'],
+                                  ['Output Location', lambda: Update_PermanentData('Output Location')],
+                                  ['Database Path', lambda: Update_PermanentData('Database Path')]]
 
 # SUB MENU (GENERATE RENT RECEIPT)
 SUB_MENU_GENERATE_RENT_RECEIPT = [['BACK', lambda: 'BACK'], ['ROOM'], ['SHOP']]
@@ -75,9 +78,11 @@ SUB_MENU_CUSTOM_ACTION = [['BACK', lambda: 'BACK'],
 MENU_MAPPINGS = {}
 def CreateMappings(MENUS, SUB_MENU_PREFIX, MENU_MAPPINGS):
     for ID, MENU in enumerate(MENUS):
-        if f'{SUB_MENU_PREFIX}_{MENU[0].replace(' ', '_')}' in globals():
+        if f'{SUB_MENU_PREFIX}_{MENU[0].upper().replace(' ', '_')}' in globals():
+            NEW_SUB_MENU_PREFIX = f'{SUB_MENU_PREFIX}_{MENU[0].upper().replace(' ', '_')}'
+
             SUB_MENU_MAPPINGS = {}
-            CreateMappings(globals()[f'{SUB_MENU_PREFIX}_{MENU[0].replace(' ', '_')}'], f'{SUB_MENU_PREFIX}_{MENU[0].replace(' ', '_')}', SUB_MENU_MAPPINGS)
+            CreateMappings(globals()[NEW_SUB_MENU_PREFIX], NEW_SUB_MENU_PREFIX, SUB_MENU_MAPPINGS)
             MENU_MAPPINGS[str(ID + 1)] = [MENU[0], SUB_MENU_MAPPINGS]
         else:
             MENU_MAPPINGS[str(ID + 1)] = MENU
