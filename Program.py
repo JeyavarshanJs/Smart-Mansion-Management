@@ -60,7 +60,7 @@ if not all(os.path.exists(File) for File in Required_Files):
     sys.exit()  
 
 while True:
-    # os.system('cls')
+    os.system('cls')
     print('\n')
     print(' ' * 60 , r'\\!//', sep='')
     print(' ' * 60 , '(o o)', sep='')

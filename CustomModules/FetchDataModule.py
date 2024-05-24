@@ -158,6 +158,7 @@ def FetchData_UNPAID_Tenants():
         Record = list(Record[:4]) + [PhoneNumber] + list(Record[4:])
         Record[3] = int(Record[3])
         DetailsTable.add_row(Record)
+        DetailsTable.add_row(['', '', '', '', '', '']) if Record[0] != RawRecords[-1][0] else None
 
     print('\n', DetailsTable, sep='')
 

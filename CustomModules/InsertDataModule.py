@@ -13,7 +13,7 @@ Year = Today.strftime(r'%Y')
 
 
 def InsertData_WaterPurchaseDetails():
-    Date, _ = GetDate()
+    Date, _ = GetDate('Purchase Date')
 
     while True:
         TotalExpense = input('\nTotal Water Purchase Expense: ')
