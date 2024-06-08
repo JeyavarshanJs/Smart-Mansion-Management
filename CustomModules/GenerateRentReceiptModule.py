@@ -1,6 +1,6 @@
 import datetime, calendar, math
 import os, shutil
-import win32file
+import win32file  # Package Name: 'pywin32'
 from PIL import Image, ImageDraw, ImageFont
 
 from CustomModules.VariablesModule import *
@@ -507,24 +507,6 @@ def PrintSetup_SHOP_2(ReceiptNumber, TenantName):
         print(f">> Successfully Copied To The External Removable Drive '{Drive}' <<")
 
 
-def CopyReceipt_To_ExternalDrive(SourceFile):
-    global ChosenDrive
-    if ChosenDrive is not None:
-        return CopyAction(ChosenDrive, SourceFile)
-
-    AvailableDrives = [
-        f'{chr(i)}:' for i in range(65, 91) if os.path.exists(f'{chr(i)}:')
-    ]
-    AvailableRemovableDrives = [Drive for Drive in AvailableDrives if win32file.GetDriveType(Drive) == win32file.DRIVE_REMOVABLE]
-
-    if len(AvailableRemovableDrives) == 1:
-        return CopyAction(AvailableRemovableDrives[0], SourceFile)
-    elif len(AvailableRemovableDrives) != 0:
-        return GetDrive(AvailableRemovableDrives, ChosenDrive, SourceFile)
-    else:
-        return None
-
-
 def GetMonth(AvailablePreferences: list, Month = None):
     if Month is None:
         DatePreference = None
@@ -533,11 +515,12 @@ def GetMonth(AvailablePreferences: list, Month = None):
             if DatePreference is None and Month in AvailablePreferences:
                 DatePreference = Month
                 print('Preference ACCEPTED...')
-            Month = calendar.month_name[Today.month-1].upper() if Month == '' else Month
-            Month = MonthNames[Month] if Month in MonthNames.keys() else Month
-            Month = Month if Month in MonthNames.values() else Month
+            Month = (
+                calendar.month_name[Today.month-1].upper() if Month == '' else
+                MonthNames[Month] if Month in MonthNames.keys() else Month
+            )
             if Month not in MonthNames.values():
-                print('INVALID Month Name, TRY AGAIN...')
+                print('>> INVALID Month Name, TRY AGAIN <<\n')
                 continue
             break
     else:
@@ -556,7 +539,7 @@ def GetPreference(AvailablePreferences: list):
         elif RawData == '':
             return None
         else:
-            print('>> INVALID Entry, TRY AGAIN <<')
+            print('>> INVALID Entry, TRY AGAIN <<\n')
 
 def GetBalanceDUE(TenantID, ID, PreviousMonth):
     cursor.execute(f"SELECT [DUE Amount] FROM [DUE Details] WHERE [Tenant ID] = '{TenantID}' AND [Room/Shop ID] = '{ID}' AND [For The Month Of] = '{PreviousMonth}' \
@@ -644,6 +627,21 @@ def GetValidReceiptNumbers(Month):
     return [str(ReceiptNumber[0]) for ReceiptNumber in RawData]
 
 
+def CopyReceipt_To_ExternalDrive(SourceFile):
+    global ChosenDrive
+    if ChosenDrive is not None:
+        return CopyAction(ChosenDrive, SourceFile)
+
+    AvailableDrives = [
+        f'{chr(i)}:' for i in range(65, 91) if os.path.exists(f'{chr(i)}:')
+    ]
+    AvailableRemovableDrives = [Drive for Drive in AvailableDrives if win32file.GetDriveType(Drive) == win32file.DRIVE_REMOVABLE]
+
+    if len(AvailableRemovableDrives) == 1:
+        return CopyAction(AvailableRemovableDrives[0], SourceFile)
+    elif len(AvailableRemovableDrives) != 0:
+        return GetDrive(AvailableRemovableDrives, ChosenDrive, SourceFile)
+
 def GetDrive(AvailableRemovableDrives, ChosenDrive, SourceFile):
     print('\n', '-' * 75, sep='')
     print(f"{len(AvailableRemovableDrives)} Removable Drives FOUND, Choose One From The List Below")
@@ -667,7 +665,7 @@ def GetDrive(AvailableRemovableDrives, ChosenDrive, SourceFile):
     return CopyAction(ChosenDrive, SourceFile)
 
 def CopyAction(ChosenDrive, SourceFile):
-    TargetDIR = os.path.join(ChosenDrive, 'Rent Receipt Final Print')
+    TargetDIR = os.path.join(ChosenDrive, r'Final Print\Rent Receipt')
     os.makedirs(TargetDIR, exist_ok=True)
     shutil.copy(SourceFile, TargetDIR)
     return ChosenDrive

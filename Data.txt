@@ -1,3 +1,3 @@
 Cursor Position: (655, 325)
-Output Location: E:\Documents\Smart Mansion Management\
-Database Path: D:\Python Projects\Smart-Mansion-Management\Database (MS Access).accdb
+Output Location: G:\Output Files\
+Database Path: F:\Smart-Mansion-Management\Database (MS Access).accdb

@@ -1,5 +1,3 @@
-import time
-
 from CustomModules.EstablishConnection import *
 from CustomModules.VariablesModule import *
 from CustomModules.UpdateModule import *

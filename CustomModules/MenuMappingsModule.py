@@ -71,7 +71,8 @@ SUB_MENU_CUSTOM_ACTION = [['BACK', lambda: 'BACK'],
                           ['Unusual Arrival Action', lambda: CustomAction_UnusualArrivalAction()],
                           ['Unusual Departure Action', lambda: CustomAction_UnusualDepartureAction()],
                           ['New Occupancy Action', lambda: CustomAction_NewOccupancyAction()],
-                          ['Change Occupancy Action', lambda: CustomAction_ChangeOccupancyAction()]]
+                          ['Change Occupancy Action', lambda: CustomAction_ChangeOccupancyAction()],
+                          ['Tenant Vacating Action', lambda: CustomAction_TenantVacatingAction()]]
 
 
 # CREATE MENU MAPPINGS

@@ -46,8 +46,6 @@ Required_Files = [r'Static Templates\Room Rent Receipt-1.jpg', r'Static Template
                   r'Fonts\CalibriFont Bold.ttf', r'Fonts\CalibriFont Regular.ttf', 'Data.txt']
 if PermanentData['Output Location'] == '':
     UpdatePermanentData(['Output Location'], {'Output Location': f'{os.getcwd()}\\'})
-if PermanentData['Database Path'] == '':
-    UpdatePermanentData(['Database Path'], {'Database Path': rf'{os.getcwd()}\Database (MS Access).accdb'})
 
 os.makedirs(rf'{PermanentData['Output Location']}Final Print', exist_ok=True)
 os.makedirs(rf'{PermanentData['Output Location']}Rent Receipts', exist_ok=True)
@@ -62,7 +60,7 @@ if not all(os.path.exists(File) for File in Required_Files):
 while True:
     os.system('cls')
     print('\n')
-    print(' ' * 60 , r'\\!//', sep='')
+    print(' ' * 60 , r"\\!//", sep='')
     print(' ' * 60 , '(o o)', sep='')
     print('-' * 56 , 'oOOo-(_)-oOOo', '-' * 56, sep='')
     print(' ' * 42 , 'GREETINGS From Jeyavarshan, The CREATOR')

@@ -37,7 +37,7 @@ def Update_TotalRent_Field(GetMonth = True):
     for ID, DaysOccupied, TenantCount, Closing_Reading, Opening_Reading in Records:
         cursor.execute(f"SELECT * FROM [Room/Shop Data] WHERE [Room/Shop ID] = '{ID}';")
         Record = cursor.fetchone()
-        RoomRent, OtherCharges, CurrentCharge = Record[TenantCount], Record[TenantCount+3], Record[8]
+        RoomRent, OtherCharges, CurrentCharge = Record[TenantCount], Record[TenantCount+3], Record[7]
 
         if ID in Room_IDs:
             Total_Rent = math.ceil((RoomRent + OtherCharges) * DaysOccupied / 30) + math.ceil((Closing_Reading - Opening_Reading)*float(CurrentCharge)) \
@@ -124,7 +124,7 @@ def Update_DUEAmount_Field():
     winsound.Beep(1000, 500)
 
 def Update_TenantsCount_Field():
-    Month = calendar.month_name[Today.month].upper()
+    Month = calendar.month_name[Today.month-1].upper()
     cursor.execute("SELECT [Room/Shop ID], COUNT(*) FROM [Occupancy Information] WHERE [To (Date)] IS NULL GROUP BY [Room/Shop ID];")
     Records = cursor.fetchall()
     for Record in Records:
@@ -152,7 +152,7 @@ def Update_CurrentStatus_Field():
 def Update_ClosingReading_Field():
     def VerifyUpdatedRecords(Month):
         cursor.execute(f"SELECT [Room/Shop ID], [Closing Sub-Meter Reading], [Opening Sub-Meter Reading] FROM [Monthly Report Data] \
-                         WHERE [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}';")
+                         WHERE [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}' ORDER BY [Room/Shop ID];")
         RawRecords = cursor.fetchall()
 
         for Record in RawRecords:
@@ -172,7 +172,7 @@ def Update_ClosingReading_Field():
             ClosingReading = round(float(ClosingReading), 1)
             cursor.execute(f"SELECT [Opening Sub-Meter Reading] FROM [Monthly Report Data] WHERE [Room/Shop ID] = '{ID}' \
                              AND [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}';")
-            OpeningReading = round(float(cursor.fetchone()[0]))
+            OpeningReading = round(float(cursor.fetchone()[0]), 1)
             if ClosingReading < OpeningReading:
                 print(">> 'Units Consumed' Cannot Be NEGATIVE, TRY AGAIN <<")
                 return UpdateData(ID)
@@ -191,13 +191,13 @@ def Update_ClosingReading_Field():
 
     User_Choice = int(GetDetails('Choice ID', PossibleValues= [str(i+1) for i in range(len(Options))]))
     if User_Choice == 1:
-        cursor.execute(f"SELECT [Room/Shop ID] FROM [Monthly Report Data] WHERE [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}' \
-                         AND [Closing Sub-Meter Reading] IS NULL")
+        cursor.execute(f"SELECT [Room/Shop ID] FROM [Monthly Report Data] WHERE [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}' AND [Closing Sub-Meter Reading] IS NULL \
+                       ORDER BY [Room/Shop ID]")
         RawIDs = cursor.fetchall()
         IDs = [str(ID) for ID, in RawIDs]
 
         if Check_MRDRecords(IDs):
-            for ID in list(Shop_IDs + Room_IDs):
+            for ID in IDs:
                 UpdateData(ID)
 
             print('\n<<<<<+>>>>>')
@@ -225,7 +225,7 @@ def Update_DaysOccupied_Field():
         cursor.execute(Query, (Month,))
         Records = cursor.fetchall()
 
-        PossibleIDs = []
+        PossibleIDs = DaysOccupied_List = []
         Table = PrettyTable()
         Table.field_names = ['Room/Shop ID', 'Days Occupied', 'Tenant Name', 'Shop Name', 'From (Date)', 'To (Date)']
         Table.align['Tenant Name'] = 'l'
@@ -234,16 +234,18 @@ def Update_DaysOccupied_Field():
             VacatedMonth = calendar.month_name[int(Record[5].strftime('%m'))].upper() if Record[5] is not None else None
             if OccupiedMonth == Month or VacatedMonth == Month:
                 PossibleIDs.append(Record[0])
+                DaysOccupied_List.append(Record[1])
                 Record[4] = Record[4].strftime(r'%d-%m-%Y') if Record[4] is not None else ''
+                Record[5] = Record[5].strftime(r'%d-%m-%Y') if Record[4] is not None else ''
                 Table.add_row(Record)
 
         print('\n', Table, sep='')
-        EditRecords(Month, PossibleIDs)
+        EditRecords(Month, PossibleIDs, DaysOccupied_List)
 
-    def EditRecords(Month, PossibleIDs):
+    def EditRecords(Month, PossibleIDs, DaysOccupied_List):
         if GetUser_Confirmation('Do You Want To Edit The Records?'):
-            for ID in PossibleIDs:
-                DaysOccupied = int(GetDetails(f"'Days Occupied' For The Room/Shop (ID: {ID})", PossibleValues= [str(ID) for ID in range(31)]))
+            for ID, DaysOccupied in zip(PossibleIDs, DaysOccupied_List):
+                DaysOccupied = int(GetDetails(f"'Days Occupied' For The Room/Shop (ID: {ID})", PossibleValues= [str(ID) for ID in range(31)], DefaultValue= DaysOccupied))
                 cursor.execute(f"UPDATE [Monthly Report Data] SET [Days Occupied] = {DaysOccupied} WHERE [Room/Shop ID] = '{ID}' \
                                  AND [For The Month Of] = '{Month}' AND [Year (YYYY)] = '{Year}';")
                 cursor.commit()
@@ -317,7 +319,7 @@ def Update_PermanentData(WhatToUpdate):
 def Get_DateTime(Month = None):
     if Month == None:
         while True:
-            Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').upper()
+            Month = input('\nEnter The Desired Month (eg. JAN or JANUARY): ').strip().upper()
             Month = (
                 calendar.month_name[Today.month-1].upper() if Month == '' else
                 MonthNames[Month] if Month in MonthNames.keys() else Month
@@ -366,13 +368,15 @@ def GenerateList(WhatToGet, Elements = None):
             List.append(i)
     return False, List
 
-def GetDetails(WhatToGet: str, DataType = str, PossibleValues = []):
+def GetDetails(WhatToGet: str, DataType = str, PossibleValues = [], DefaultValue = None):
     while True:
         RawData = input(f'\nEnter The {WhatToGet}: ').strip().upper()
         try:
             ConvertedData = DataType(RawData)
             if not PossibleValues or ConvertedData in PossibleValues: 
                 return ConvertedData
+            if not DefaultValue and ConvertedData == '':
+                return DefaultValue
             else:
                 print(f'INVALID {WhatToGet}, TRY AGAIN...')
         except ValueError:

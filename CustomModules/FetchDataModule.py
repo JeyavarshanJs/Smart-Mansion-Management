@@ -1,9 +1,10 @@
 import math, datetime, calendar
-import winsound
+import winsound, shutil, win32file
 from prettytable import PrettyTable
 
 from CustomModules.VariablesModule import *
 from CustomModules.EstablishConnection import *
+from fpdf import FPDF
 
 Today = datetime.date.today()
 Year = Today.strftime('%Y') 
@@ -139,32 +140,6 @@ def FetchData_ReceiptNumber_FROM_TenantID(IsLoop = True, TenantID = None, Month 
 
 def FetchData_UNPAID_Tenants():
     cursor.execute("""
-                SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Individual Rent], [For The Month OF] FROM [Payment Details]
-                WHERE Status = 'UNPAID' ORDER BY [For The Month Of], [Room/Shop ID]
-                UNION ALL
-                SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Individual Rent], [For The Month OF] FROM [Payment Details (NS)]
-                WHERE Status = 'UNPAID' 
-                ORDER BY [For The Month Of], [Room/Shop ID], [Tenant ID];
-    """)
-    RawRecords = cursor.fetchall()
-
-    DetailsTable = PrettyTable()
-    DetailsTable.field_names = ['Tenant ID', 'Tenant Name', 'Room/Shop ID', 'Total Amount', 'Phone Number', 'For The Month Of']
-    DetailsTable.align['Tenant Name'] = 'l'
-
-    for Record in RawRecords:
-        cursor.execute(f"SELECT [Phone Number] FROM [Tenant's Information] WHERE [ID] = '{Record[0]}'")
-        PhoneNumber = cursor.fetchone()[0]
-        Record = list(Record[:4]) + [PhoneNumber] + list(Record[4:])
-        Record[3] = int(Record[3])
-        DetailsTable.add_row(Record)
-        DetailsTable.add_row(['', '', '', '', '', '']) if Record[0] != RawRecords[-1][0] else None
-
-    print('\n', DetailsTable, sep='')
-
-    SUMTable = PrettyTable()
-    SUMTable.field_names = ['Total DUE', 'For The Month Of']
-    cursor.execute("""
                 SELECT SUM([Individual Rent]), [For The Month Of] FROM
                 (
                     SELECT [Individual Rent], [For The Month Of] FROM [Payment Details] WHERE Status = 'UNPAID' 
@@ -174,6 +149,8 @@ def FetchData_UNPAID_Tenants():
                 GROUP BY [For The Month Of] ORDER BY SUM([Individual Rent]) DESC;
     """)
     RawRecords = cursor.fetchall()
+    SUMTable = PrettyTable()
+    SUMTable.field_names = ['Total DUE', 'For The Month Of']
 
     for Record in RawRecords:
         Record = list(Record)
@@ -181,6 +158,32 @@ def FetchData_UNPAID_Tenants():
         SUMTable.add_row(Record)
 
     print('\n', SUMTable, sep='', end='\n\n')
+
+    cursor.execute("""
+                SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Individual Rent], [For The Month OF] FROM [Payment Details]
+                WHERE Status = 'UNPAID' ORDER BY [For The Month Of], [Room/Shop ID]
+                UNION ALL
+                SELECT [Tenant ID], [Tenant Name], [Room/Shop ID], [Individual Rent], [For The Month OF] FROM [Payment Details (NS)]
+                WHERE Status = 'UNPAID' 
+                ORDER BY [For The Month Of], [Room/Shop ID], [Tenant ID];
+    """)
+    RawRecords = cursor.fetchall()
+    DetailsTable = PrettyTable()
+    DetailsTable.field_names = ['Tenant ID', 'Tenant Name', 'Room/Shop ID', 'Total Amount', 'Phone Number', 'For The Month Of']
+    DetailsTable.align['Tenant Name'] = 'l'
+
+    Records = []
+    for Record in RawRecords:
+        cursor.execute(f"SELECT [Phone Number] FROM [Tenant's Information] WHERE [ID] = '{Record[0]}'")
+        PhoneNumber = cursor.fetchone()[0]
+        Record = list(Record[:4]) + [PhoneNumber] + list(Record[4:])
+        Record[3] = int(Record[3])
+        Records.append(Record)
+        DetailsTable.add_row(Record)
+        DetailsTable.add_row(['', '', '', '', '', '']) if Record[0] != RawRecords[-1][0] else None
+
+    print('\n', DetailsTable, sep='')
+    GenerateReport(['Tenant Name', 'Room/Shop ID', 'Total Amount', 'Phone Number', 'Month', 'Status', 'Date'], Records) if GetUser_Confirmation('Do You Want To Generate A Report') else print()
 
 def FetchData_GetTenantDetails():
     def ADD_ROW(Record):
@@ -248,15 +251,13 @@ def FetchData_GetTenantDetails():
         print('\n', Table, '\n', sep='')
 
 def FetchDate_Vacancy():
-    VacancyCount = 0
     VacantSpace_List = []
-    for ID in list(Room_IDs + Shop_IDs):
+    for ID in sorted(Room_IDs + Shop_IDs):
         cursor.execute(f"SELECT * FROM [Occupancy Information] WHERE [Room/Shop ID] = '{ID}' AND [To (Date)] IS NULL")
-        x = cursor.fetchone()
-        if x == None:
+        if cursor.fetchone() == None:
             VacantSpace_List.append(ID)
-            VacancyCount += 1
-    print('\nNumber Of Room/Shop Vacant:', VacancyCount)
+
+    print('\nNumber Of Room/Shop Vacant:', len(VacantSpace_List))
     print('Vacant Room/Shop(s) is(are): ', end='')
     for ID in VacantSpace_List:
         print(ID, end=', ') if ID != VacantSpace_List[-1] else print(ID)
@@ -297,3 +298,91 @@ def GetDetails(WhatToGet: str, DataType = str, PossibleValues = []):
                 print(f'INVALID {WhatToGet}, TRY AGAIN...')
         except ValueError:
             print(f'INVALID {WhatToGet}, TRY AGAIN...')
+
+def GetUser_Confirmation(QString, YES = ['Y', ''], NO = ['N']):
+    while True:
+        ANS = input('\n' + QString + ' (Y/N): ').strip().upper()
+        if ANS in (YES + NO):
+            return True if ANS in YES else False
+        else:
+            print('>> INVALID Response, TRY AGAIN <<')
+
+def GenerateReport(Fields, Records):
+    os.makedirs(rf'{PermanentData['Output Location']}Rent Report', exist_ok=True)
+    PDF_Path = rf"{PermanentData['Output Location']}\Rent Report\RentReport ({datetime.date.today().strftime(r'%d-%m-%Y')}).PDF"
+    PDF = FPDF(orientation='P', unit='mm', format='A4')
+    PDF.add_page()
+    PDF.add_font("Calibri", '', r'Fonts\CalibriFont Regular.ttf', True)
+    PDF.set_font("Calibri", size=12)
+    PDF.set_margins(5, 5, 5)
+    PDF.set_auto_page_break(True, 5)
+    
+    ColumnWidth_List = [45.572, 28.572, 27.572, 28.572, 25.572, 15.572, 28.572]
+    CellHeight = 7.525
+
+    PDF.set_x(PDF.l_margin)
+    PDF.set_y(PDF.t_margin)
+    for Name, ColumnWidth in zip(Fields, ColumnWidth_List):
+        PDF.cell(ColumnWidth, CellHeight, Name, 1, 0, 'C')
+    PDF.ln()
+    
+    # Add rows
+    for Row in Records:
+        for Element, ColumnWidth in zip(Row[1:], ColumnWidth_List):
+            PDF.cell(ColumnWidth, CellHeight, str(Element), 1, 0, 'C')
+        PDF.cell(ColumnWidth_List[-2], CellHeight, '', 1)
+        PDF.cell(ColumnWidth_List[-1], CellHeight, '', 1)
+        PDF.ln()
+    
+    # Save the PDF
+    PDF.output(PDF_Path)
+
+    print("\n>>> PDF Generated SUCCESSFULLY <<<\n")
+    Drive = CopyReceipt_To_ExternalDrive(PDF_Path)
+    if Drive != None:
+        print(f">> Successfully Copied To The External Removable Drive '{Drive}' <<\n")
+    winsound.Beep(1000, 500)
+
+
+def CopyReceipt_To_ExternalDrive(SourceFile):
+    global ChosenDrive
+    if ChosenDrive is not None:
+        return CopyAction(ChosenDrive, SourceFile)
+
+    AvailableDrives = [
+        f'{chr(i)}:' for i in range(65, 91) if os.path.exists(f'{chr(i)}:')
+    ]
+    AvailableRemovableDrives = [Drive for Drive in AvailableDrives if win32file.GetDriveType(Drive) == win32file.DRIVE_REMOVABLE]
+
+    if len(AvailableRemovableDrives) == 1:
+        return CopyAction(AvailableRemovableDrives[0], SourceFile)
+    elif len(AvailableRemovableDrives) != 0:
+        return GetDrive(AvailableRemovableDrives, ChosenDrive, SourceFile)
+
+def GetDrive(AvailableRemovableDrives, ChosenDrive, SourceFile):
+    print('\n', '-' * 75, sep='')
+    print(f"{len(AvailableRemovableDrives)} Removable Drives FOUND, Choose One From The List Below")
+
+    print('  (', end='')
+    for Drive in AvailableRemovableDrives:
+        print(Drive, end=', ') if Drive != AvailableRemovableDrives[-1] else print(f'{Drive})')
+
+    print('-' * 75, '\n', sep='')
+
+    while True:
+        ChosenDrive = input('\nEnter The Desired Drive: ').strip().upper()
+        if ChosenDrive.endswith(':') and len(ChosenDrive) == 2 and ChosenDrive[0] in AvailableRemovableDrives:
+            break
+        elif len(ChosenDrive) == 1 and f'{ChosenDrive}:' in AvailableRemovableDrives:
+            ChosenDrive += ':'
+            break
+        else:
+            print('INVALID Drive Chosen, TRY AGAIN...')
+
+    return CopyAction(ChosenDrive, SourceFile)
+
+def CopyAction(ChosenDrive, SourceFile):
+    TargetDIR = os.path.join(ChosenDrive, r'Final Print\Rent Report')
+    os.makedirs(TargetDIR, exist_ok=True)
+    shutil.copy(SourceFile, TargetDIR)
+    return ChosenDrive
